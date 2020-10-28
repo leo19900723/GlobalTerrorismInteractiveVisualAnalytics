@@ -7,23 +7,28 @@ class DataHandler(object):
     def __init__(self, dataframe):
         self._dataframe_original = dataframe
         self._dataframe_last_update = None
-        self.clean_data()
+        self.preprocess_data()
 
     @classmethod
     def construct_from_csv(cls, path):
         return DataHandler(dataframe=pd.read_csv(path, encoding="ISO-8859-1"))
 
-    def clean_data(self):
-        self._dataframe_last_update = self._dataframe_original[self._dataframe_original["gname"] != "Unknown"].dropna(subset=["gname"])
+    def preprocess_data(self):
+        clean_list = [
+            "iyear",
+            "gname",
+            "latitude",
+            "longitude",
+            "targtype1_txt",
+            "weaptype1_txt"
+        ]
 
+        # Clean data
+        self._dataframe_last_update = self._dataframe_original.replace(to_replace="Unknown", value=np.nan)
+        self._dataframe_last_update = self._dataframe_last_update.dropna(subset=clean_list)
+
+        # Apply changes to original dataframe
         self.apply_last_update()
-
-    def top10_group_from_2000(self):
-        self._dataframe_last_update = self._dataframe_original[self._dataframe_original["iyear"] >= 2000].dropna(subset=["iyear"])
-        df_2000_top10_list = self._dataframe_last_update["gname"].value_counts().head(10).index
-
-        self._dataframe_last_update = self._dataframe_last_update.groupby(["iyear", "gname"]).size().reset_index(name="frequency")
-        self._dataframe_last_update = self._dataframe_last_update[self._dataframe_last_update["gname"].isin(df_2000_top10_list)]
 
     def apply_last_update(self):
         self._dataframe_original = self._dataframe_last_update.copy()

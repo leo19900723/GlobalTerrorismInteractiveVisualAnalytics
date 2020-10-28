@@ -1,0 +1,31 @@
+body {
+    background-color: #f2f2f2;
+    text-align: center;
+}
+
+#main {
+    margin: 5%
+}
+
+#row0 {
+    padding: 1%;
+}
+
+#row10, #row21 {
+    width: 27%;
+    display: inline-block;
+}
+
+#row11, #row20 {
+    width: 65%;
+    display: inline-block;
+}
+
+.block_style {
+    margin: 0.5%;
+    border-radius: 5px;
+    background-color: #f9f9f9;
+    padding: 15px;
+    position: relative;
+    box-shadow: 2px 2px 2px lightgrey;
+}
