@@ -3,20 +3,24 @@ body {
     text-align: center;
 }
 
+div {
+    vertical-align: top;
+}
+
 #main {
     margin: 5%
 }
 
-#row0 {
+#row0, #row2, #row4 {
     padding: 1%;
 }
 
-#row10, #row21 {
+#row10, #row31 {
     width: 27%;
     display: inline-block;
 }
 
-#row11, #row20 {
+#row11, #row30 {
     width: 65%;
     display: inline-block;
 }
