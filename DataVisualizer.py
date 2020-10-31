@@ -37,12 +37,13 @@ class DataVisualizer(object):
         )
 
     def set_layout(self):
-        self._app.layout = html.Div(id="main", children=[
+        self._app.layout = html.Div(id="main", className="block_style", children=[
             html.H1(children="Project 2: Interactive Visual Analytics Dashboard"),
             html.Div(children="Yi-Chen Liu © 2020 Copyright held by the owner/author(s)."),
 
             html.Div(id="row0", children=[
                 html.Div(
+                    id="row00",
                     children=[
                         dcc.RangeSlider(
                             id="year_slider",
@@ -52,9 +53,7 @@ class DataVisualizer(object):
                                    self._data_handler.get_data_frame_original["iyear"].unique()},
                             value=self._default_year_range
                         ),
-                        html.Br(),
-                    ],
-                    className="block_style"
+                    ]
                 ),
             ]),
 
@@ -62,54 +61,61 @@ class DataVisualizer(object):
                 html.Div(
                     id="row10",
                     children=[
-                        html.Label([
-                            "Group Selector",
-                            dcc.Dropdown(
-                                id="group_selector",
-                                options=[{"label": group, "value": group} for group in
-                                         self._data_handler.get_data_frame_original["gname"].unique()],
-                                value=self._default_group_list,
-                                multi=True
-                            )
-                        ]),
-                        html.Label([
-                            "Bar Chart Category View Picker",
-                            dcc.Dropdown(
-                                id="bar_chart_view_picker",
-                                options=[{"label": col, "value": col} for col in self._data_handler.get_txt_categories],
-                                value=self._default_bar_pick
-                            )
-                        ]),
-                        html.Label([
-                            "PCA Category View Picker",
-                            dcc.Dropdown(
-                                id="pca_view_picker",
-                                options=[{"label": col, "value": col} for col in
-                                         self._data_handler.get_data_frame_original.columns],
-                                value=self._default_pca_pick
-                            )
-                        ])
-                    ],
-                    className="block_style"
+                        dcc.Loading(children=[dcc.Graph(id="bar_year_attack_type_all_fig", className="graph_style")])
+                    ]
                 ),
                 html.Div(
                     id="row11",
                     children=[
-                        html.H5(children="Yearly Accumulated Attacks and Types"),
-                        dcc.Graph(id="bar_year_attack_type_all_fig")
-                    ],
-                    className="block_style"
-                ),
+                        html.Div(
+                            id="row110",
+                            children=[
+                                html.H5(children="Category View Picker"),
+                                dcc.Dropdown(
+                                    id="bar_chart_view_picker",
+                                    options=[{"label": col, "value": col} for col in
+                                             self._data_handler.get_txt_categories],
+                                    value=self._default_bar_pick
+                                )
+                            ]
+                        ),
+                        html.Div(
+                            id="row111",
+                            children=[
+                                dcc.Loading(children=[dcc.Graph(id="scatter_kill_wound_selected_group_and_year",
+                                                                className="graph_style")])
+                            ]
+                        )
+                    ]
+                )
             ]),
 
             html.Div(id="row2", children=[
                 html.Div(
                     id="row20",
                     children=[
-                        html.H5(children="Attacks Map by Groups"),
-                        dcc.Graph(id="map_year_attack_group_fig")
-                    ],
-                    className="block_style"
+                        html.H5(children="Terrorism Group Selector"),
+                        dcc.Dropdown(
+                            id="group_selector",
+                            options=[{"label": group, "value": group} for group in
+                                     self._data_handler.get_data_frame_original["gname"].unique()],
+                            value=self._default_group_list,
+                            multi=True
+                        ),
+                        html.H5(children="PCA Category View Picker"),
+                        dcc.Dropdown(
+                            id="pca_view_picker",
+                            options=[{"label": col, "value": col} for col in
+                                     self._data_handler.get_data_frame_original.columns],
+                            value=self._default_pca_pick
+                        )
+                    ]
+                ),
+                html.Div(
+                    id="row21",
+                    children=[
+                        dcc.Loading(children=[dcc.Graph(id="map_year_attack_group_fig", className="graph_style")])
+                    ]
                 )
             ]),
 
@@ -119,18 +125,15 @@ class DataVisualizer(object):
                     html.Div(
                         id="row30",
                         children=[
-                            html.H5(children="Yearly Attacks by Groups"),
-                            dcc.Graph(id="line_year_attack_group_fig")
-                        ],
-                        className="block_style"
+                            dcc.Loading(children=[dcc.Graph(id="line_year_attack_group_fig", className="graph_style")])
+                        ]
                     ),
                     html.Div(
                         id="row31",
                         children=[
-                            html.H5(children="Target Type by Selected Attacks"),
-                            dcc.Graph(id="pie_year_target_selected_group_fig")
-                        ],
-                        className="block_style"
+                            dcc.Loading(
+                                children=[dcc.Graph(id="pie_year_target_selected_group_fig", className="graph_style")])
+                        ]
                     )
                 ]),
             html.Div(
@@ -139,14 +142,58 @@ class DataVisualizer(object):
                     html.Div(
                         id="row40",
                         children=[
-                            html.H5(children="PCA"),
-                            dcc.Graph(id="pca")
-                        ],
-                        className="block_style"
+                            dcc.Loading(children=[dcc.Graph(id="pca", className="graph_style")])
+                        ]
                     )
                 ]
             )
         ])
+
+        @self._app.callback(
+            dash.dependencies.Output("bar_year_attack_type_all_fig", "figure"),
+            [dash.dependencies.Input("year_slider", "value"),
+             dash.dependencies.Input("bar_chart_view_picker", "value")])
+        def update_bar_year_attack_type_all_fig(year_range, selected_col):
+            selected_col = selected_col if selected_col else self._default_bar_pick
+            self._default_bar_pick = selected_col
+
+            df = self._data_handler.get_data_frame_original
+            df = DataHandler.trim_categories(data_frame=df, target_col=selected_col)
+            df = df[df["iyear"].between(year_range[0], year_range[1], inclusive=True)]
+            df = df.groupby(["iyear", selected_col]).size().reset_index(name="frequency")
+
+            fig = px.bar(data_frame=df, x="iyear", y="frequency", color=selected_col,
+                         custom_data=["iyear", selected_col], template="plotly_white")
+            fig.update_layout(legend=self._default_legend_style,
+                              autosize=True, title="Yearly Accumulated Attacks and Types")
+            return fig
+
+        @self._app.callback(
+            dash.dependencies.Output("scatter_kill_wound_selected_group_and_year", "figure"),
+            [dash.dependencies.Input("bar_year_attack_type_all_fig", "hoverData"),
+             dash.dependencies.Input("bar_chart_view_picker", "value")])
+        def update_scatter_kill_wound_selected_group_and_year(hovered_bar, selected_col):
+            if hovered_bar and hovered_bar["points"] and hovered_bar["points"][0]["customdata"][1] in \
+                    self._data_handler.get_data_frame_original[selected_col].unique():
+                df_hovered_point = dict(zip(["iyear", selected_col], hovered_bar["points"][0]["customdata"]))
+            else:
+                df_hovered_point = {
+                    "iyear": self._default_year_range[1],
+                    selected_col: self._data_handler.get_data_frame_original[selected_col].value_counts().index[0]
+                }
+
+            df = self._data_handler.get_data_frame_original
+            df = DataHandler.trim_categories(data_frame=df, target_col=selected_col)
+            df = df[(df["iyear"] == df_hovered_point["iyear"]) & (df[selected_col] == df_hovered_point[selected_col])][
+                ["natlty1_txt", "nkill", "nwound"]]
+            df = DataHandler.trim_categories(data_frame=df, target_col="natlty1_txt")
+            df["cases_by_" + df_hovered_point[selected_col]] = df["natlty1_txt"].map(df["natlty1_txt"].value_counts())
+
+            fig = px.scatter(data_frame=df, x="nkill", y="nwound", color="natlty1_txt",
+                             size=("cases_by_" + df_hovered_point[selected_col]))
+            fig.update_layout(legend=self._default_legend_style, autosize=True,
+                              title=("Detail view for " + df_hovered_point[selected_col]))
+            return fig
 
         @self._app.callback(
             dash.dependencies.Output("map_year_attack_group_fig", "figure"),
@@ -162,24 +209,8 @@ class DataVisualizer(object):
                                     zoom=2, custom_data=["gname", "latitude", "longitude"],
                                     color_continuous_scale=px.colors.cyclical.IceFire, mapbox_style="open-street-map",
                                     template="ggplot2")
-            fig.update_layout(legend=self._default_legend_style)
-            return fig
-
-        @self._app.callback(
-            dash.dependencies.Output("bar_year_attack_type_all_fig", "figure"),
-            [dash.dependencies.Input("year_slider", "value"),
-             dash.dependencies.Input("bar_chart_view_picker", "value")])
-        def update_bar_year_attack_type_all_fig(year_range, selected_col):
-            selected_col = selected_col if selected_col else self._default_bar_pick
-            self._default_bar_pick = selected_col
-
-            df = self._data_handler.get_data_frame_original
-            df = DataHandler.trim_categories(data_frame=df, target_col=selected_col)
-            df = df[df["iyear"].between(year_range[0], year_range[1], inclusive=True)]
-            df = df.groupby(["iyear", selected_col]).size().reset_index(name="frequency")
-
-            fig = px.bar(data_frame=df, x="iyear", y="frequency", color=selected_col, template="plotly_white")
-            fig.update_layout(legend=self._default_legend_style)
+            fig.update_layout(legend=self._default_legend_style, autosize=True,
+                              title="Attacks Map by Terrorism Groups")
             return fig
 
         @self._app.callback(
@@ -207,11 +238,13 @@ class DataVisualizer(object):
             df_target = df.groupby(["targtype1_txt"]).size().reset_index(name="frequency")
 
             fig_line = px.line(data_frame=df_attack, x="iyear", y="frequency", color="gname", template="plotly_white")
-            fig_line.update_layout(legend=self._default_legend_style)
+            fig_line.update_layout(legend=self._default_legend_style, autosize=True,
+                                   title="Yearly Attacks by Terrorism Groups")
 
             fig_pie = px.pie(data_frame=df_target, values="frequency", names="targtype1_txt", template="ggplot2")
             fig_pie.update_traces(textposition="inside", textinfo="percent+label")
-            fig_pie.update_layout(showlegend=False)
+            fig_pie.update_layout(showlegend=False, autosize=True,
+                                  title="Target Type by Selected Attacks")
 
             return fig_line, fig_pie
 
@@ -226,7 +259,8 @@ class DataVisualizer(object):
             df_pca = DataHandler.trim_categories(data_frame=df_pca, target_col=picked_col)
 
             fig = px.scatter(data_frame=df_pca, x="x", y="y", color=picked_col)
-            fig.update_layout(legend=self._default_legend_style)
+            fig.update_layout(legend=self._default_legend_style, autosize=True,
+                              title="PCA")
             return fig
 
     def run_server(self):

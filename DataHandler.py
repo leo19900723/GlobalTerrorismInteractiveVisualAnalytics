@@ -11,7 +11,7 @@ class DataHandler(object):
         self._data_frame_last_update = None
         self.preprocess_data()
 
-        self._txt_cols = ["attacktype1_txt", "gname"]
+        self._txt_cols = ["attacktype1_txt", "weaptype1_txt", "targtype1_txt", "gname"]
         self._numeric_cols = ["nperps", "nperpcap", "nkill", "nkillus", "nkillter", "nwound", "nwoundus", "nwoundte",
                               "propvalue", "nhostkid", "nhostkidus", "nhours", "ndays", "nreleased"]
 
@@ -39,11 +39,10 @@ class DataHandler(object):
         self.apply_last_update()
 
     def get_data_frame_pca(self, tag):
-
         self._data_frame_last_update = self._data_frame_original[self._numeric_cols]
         self._data_frame_last_update = self._data_frame_last_update.apply(lambda x: x.fillna(0))
         self._data_frame_last_update = pd.DataFrame(StandardScaler().fit_transform(self._data_frame_last_update),
-                                                     columns=self._numeric_cols)
+                                                    columns=self._numeric_cols)
 
         pca = PCA(n_components=2)
         df_pca = pca.fit_transform(self._data_frame_last_update)
@@ -64,7 +63,7 @@ class DataHandler(object):
 
         if len(data_frame[target_col].unique()) >= number_of_reserved:
             reserved_categories = data_frame[target_col].value_counts().head(number_of_reserved).index
-            df.loc[~data_frame[target_col].isin(reserved_categories), target_col] = "Others"
+            df.loc[~data_frame[target_col].isin(reserved_categories), target_col] = "Other"
 
         return df
 
