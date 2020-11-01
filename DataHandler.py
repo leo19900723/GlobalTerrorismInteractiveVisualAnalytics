@@ -58,12 +58,15 @@ class DataHandler(object):
         self._data_frame_last_update = self._data_frame_original.copy()
 
     @staticmethod
-    def trim_categories(data_frame, target_col, number_of_reserved=8):
+    def get_top_categories(data_frame, target_col, number_of_reserved=8):
+        return list(data_frame[target_col].value_counts().head(number_of_reserved).index)
+
+    @staticmethod
+    def trim_categories(data_frame, target_col, designated_list=None, number_of_reserved=None):
         df = data_frame.copy()
 
-        if len(data_frame[target_col].unique()) >= number_of_reserved:
-            reserved_categories = data_frame[target_col].value_counts().head(number_of_reserved).index
-            df.loc[~data_frame[target_col].isin(reserved_categories), target_col] = "Other"
+        reserved_categories = designated_list if designated_list else data_frame[target_col].value_counts().index
+        df.loc[~data_frame[target_col].isin(reserved_categories[:number_of_reserved]), target_col] = "Other"
 
         return df
 
@@ -76,7 +79,7 @@ class DataHandler(object):
         return self._data_frame_last_update
 
     @property
-    def get_txt_categories(self):
+    def get_txt_columns(self):
         return self._txt_cols
 
 

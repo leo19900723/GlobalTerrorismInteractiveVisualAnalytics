@@ -1,6 +1,5 @@
 body {
     background-color: #f2f2f2;
-    text-align: center;
 }
 
 div {
@@ -8,10 +7,61 @@ div {
 }
 
 #main {
-    width: 90%;
-    margin: 5%;
+    margin:0;
+    height: 100%;
+    width: 100%;
+    display: flex;
+}
+
+#side_bar {
+    width: 21vw;
+    height: 100%;
+    overflow: auto;
+    background-color: gray;
+    position: fixed;
+    z-index: 1;
+    top: 0;
+    left: 0;
+    padding: 2%;
+
     display: flex;
     flex-direction: column;
+}
+
+#content {
+    scroll-snap-type: y mandatory;
+    overflow: auto;
+    background-color: red;
+    width: 75vw;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 25vw;
+
+    display: flex;
+    flex-direction: column;
+}
+
+#screen0, #screen1, #screen2 {
+    scroll-snap-align: start;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+#screen00, #screen01, #screen10, #screen11, #screen20, #screen21 {
+    height: 50vh;
+    position: relative;
+}
+
+#screen11 {
+    display: flex;
+}
+
+#screen110, #screen111 {
+    flex-grow: 1;
+    flex-basis: 0;
+    position: relative;
 }
 
 #row0, #row1, #row2, #row3, #row4 {
