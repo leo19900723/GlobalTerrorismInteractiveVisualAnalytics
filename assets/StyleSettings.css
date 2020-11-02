@@ -42,101 +42,38 @@ div {
     flex-direction: column;
 }
 
-#screen0, #screen1, #screen2 {
+#screen0, #screen1 {
     scroll-snap-align: start;
     height: 100vh;
     display: flex;
     flex-direction: column;
 }
 
-#screen00, #screen01, #screen10, #screen11, #screen20, #screen21 {
-    height: 50vh;
-    position: relative;
-}
-
-#screen11 {
-    display: flex;
-}
-
-#screen110, #screen111 {
-    flex-grow: 1;
-    flex-basis: 0;
-    position: relative;
-}
-
-#row0, #row1, #row2, #row3, #row4 {
-    display: flex;
-}
-
-#row1, #row3, #row4 {
-    height: 50vh;
-}
-
-#row2 {
+#screen2 {
+    scroll-snap-align: start;
     height: 100vh;
-}
-
-#row00 {
-    margin-top: 1%;
-    margin-bottom: 1%;
-    flex-grow: 1;
-    flex-basis: 0;
-}
-
-#row10 {
-    margin: 0.5%;
-    flex-grow: 2;
-    flex-basis: 0;
-    position: relative;
-}
-
-#row11 {
-    margin: 0.5%;
-    flex-grow: 1;
-    flex-basis: 0;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
 }
 
-#row111 {
-    flex-grow: 1;
-    flex-basis: 0;
+#screen00, #screen01, #screen10, #screen11 {
+    height: 50vh;
     position: relative;
 }
 
-#row20 {
-    margin: 0.5%;
-    flex-grow: 1;
-    flex-basis: 0;
-}
-
-#row21 {
-    margin: 0.5%;
-    flex-grow: 4;
+ #screen20 {
+    height: 100vh;
+    flex-grow: 3;
     flex-basis: 0;
     position: relative;
-}
+ }
 
-#row30 {
-    margin: 0.5%;
+ #screen21 {
+    height: 100vh;
     flex-grow: 1;
     flex-basis: 0;
     position: relative;
-}
-
-#row31 {
-    margin: 0.5%;
-    flex-grow: 1;
-    flex-basis: 0;
-    position: relative;
-}
-
-#row40 {
-    margin: 0.5%;
-    flex-grow: 1;
-    flex-basis: 0;
-    position: relative;
-}
+ }
 
 .block_style {
     border-radius: 5px;

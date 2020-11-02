@@ -9,11 +9,12 @@ class DataHandler(object):
     def __init__(self, data_frame):
         self._data_frame_original = data_frame
         self._data_frame_last_update = None
-        self.preprocess_data()
 
         self._txt_cols = ["attacktype1_txt", "weaptype1_txt", "targtype1_txt", "gname"]
         self._numeric_cols = ["nperps", "nperpcap", "nkill", "nkillus", "nkillter", "nwound", "nwoundus", "nwoundte",
                               "propvalue", "nhostkid", "nhostkidus", "nhours", "ndays", "nreleased"]
+
+        self.preprocess_data()
 
     @classmethod
     def construct_from_csv(cls, path):
@@ -35,12 +36,15 @@ class DataHandler(object):
         self._data_frame_last_update = self._data_frame_last_update.dropna(subset=clean_list)
         self._data_frame_last_update = self._data_frame_last_update.reset_index()
 
+        # Fill na with 0 in numeric cols
+        self._data_frame_last_update[self._numeric_cols] = self._data_frame_last_update[self._numeric_cols].fillna(0)
+
         # Apply changes to original data_frame
         self.apply_last_update()
 
     def get_data_frame_pca(self, tag):
         self._data_frame_last_update = self._data_frame_original[self._numeric_cols]
-        self._data_frame_last_update = self._data_frame_last_update.apply(lambda x: x.fillna(0))
+        self._data_frame_last_update = self._data_frame_last_update.fillna(0)
         self._data_frame_last_update = pd.DataFrame(StandardScaler().fit_transform(self._data_frame_last_update),
                                                     columns=self._numeric_cols)
 

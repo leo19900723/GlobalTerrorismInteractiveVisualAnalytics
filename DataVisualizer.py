@@ -3,7 +3,10 @@ import dash
 import dash_html_components as html
 import plotly.express as px
 import dash_core_components as dcc
+import plotly.graph_objects as go
+import calendar
 
+from plotly.subplots import make_subplots
 from DataHandler import DataHandler
 
 
@@ -98,7 +101,9 @@ class DataVisualizer(object):
 
                             html.Div(
                                 id="screen01",
-                                children="Heat map YO!!!!"
+                                children=[
+                                    dcc.Graph(id="heatmap_weekday_month_year_attack_freq_fig", className="graph_style")
+                                ]
                             )
                         ]
                     ),
@@ -116,18 +121,7 @@ class DataVisualizer(object):
                             html.Div(
                                 id="screen11",
                                 children=[
-                                    html.Div(
-                                        id="screen110",
-                                        children=[
-                                            dcc.Graph(id="scatter_kill_wound_selected_group_and_year", className="graph_style")
-                                        ]
-                                    ),
-                                    html.Div(
-                                        id="screen111",
-                                        children=[
-                                            dcc.Graph(id="pie_year_target_selected_group_fig", className="graph_style")
-                                        ]
-                                    )
+                                    dcc.Graph(id="pies_kill_wound_nationality_selected_points", className="graph_style")
                                 ]
                             )
                         ]
@@ -186,6 +180,32 @@ class DataVisualizer(object):
             return fig
 
         @self._app.callback(
+            dash.dependencies.Output("heatmap_weekday_month_year_attack_freq_fig", "figure"),
+            [dash.dependencies.Input("year_slider", "value"),
+             dash.dependencies.Input("specific_year_picker", "value"),
+             dash.dependencies.Input("column_picker", "value"),
+             dash.dependencies.Input("categories_picker", "value")])
+        def update_heatmap_weekday_month_year_attack_freq_fig(year_range, specified_year, selected_col, selected_cat):
+            year_range = [specified_year, specified_year] if specified_year else year_range
+            df = self.get_backend_data_frame_for_viewing(year_range=year_range, selected_col=selected_col,
+                                                         selected_cat=selected_cat)
+
+            month_order = dict(zip(range(len(calendar.month_name)), list(calendar.month_abbr)))
+            day_order = dict(zip(range(len(calendar.day_name)), list(calendar.day_abbr)))
+
+            df = df[(df[["iyear", "imonth", "iday"]] != 0).all(axis=1)][["iyear", "imonth", "iday"]]
+            df = df.rename(columns={"iyear": "year", "imonth": "month", "iday": "day"})
+            df["weekday"] = pd.to_datetime(df[["year", "month", "day"]]).dt.dayofweek
+            df = df.groupby(["weekday", "month"]).size().reset_index(name="frequency")
+            df = df.pivot(index="weekday", columns="month", values="frequency")
+            df = df.rename(index=day_order).rename(columns=month_order)
+
+            fig = px.imshow(df.values, labels=dict(x="Month of Year", y="Day of Week", color="Productivity"), x=df.columns, y=df.index)
+            fig.update_layout(autosize=True, title="Yearly Accumulated Attacks and Types")
+
+            return fig
+
+        @self._app.callback(
             dash.dependencies.Output("map_year_attack_type_all_or_specified_fig", "figure"),
             [dash.dependencies.Input("year_slider", "value"),
              dash.dependencies.Input("specific_year_picker", "value"),
@@ -193,66 +213,46 @@ class DataVisualizer(object):
              dash.dependencies.Input("categories_picker", "value")])
         def update_map_year_attack_type_all_or_specified_fig(year_range, specified_year, selected_col, selected_cat):
             year_range = [specified_year, specified_year] if specified_year else year_range
-
             df = self.get_backend_data_frame_for_viewing(year_range=year_range, selected_col=selected_col, selected_cat=selected_cat)
-            df = df.groupby([selected_col, "latitude", "longitude"]).size().reset_index(name="frequency")
+
+            df_m = df[[selected_col, "latitude", "longitude", "nkill", "nwound"]].groupby([selected_col, "latitude", "longitude"]).sum()
+            df_m["frequency"] = df.groupby([selected_col, "latitude", "longitude"]).size()
+            df = df_m.reset_index()
 
             fig = px.scatter_mapbox(data_frame=df, lat="latitude", lon="longitude", color=selected_col, size="frequency",
-                                    zoom=2, mapbox_style="open-street-map")
+                                    zoom=2, custom_data=[selected_col, "nkill", "nwound"], mapbox_style="open-street-map")
             fig.update_layout(autosize=True, title="Attacks Map by Viewing " + selected_col)
 
             return fig
 
         @self._app.callback(
-            dash.dependencies.Output("scatter_kill_wound_selected_group_and_year", "figure"),
+            dash.dependencies.Output("pies_kill_wound_nationality_selected_points", "figure"),
             [dash.dependencies.Input("map_year_attack_type_all_or_specified_fig", "selectedData"),
              dash.dependencies.Input("year_slider", "value"),
              dash.dependencies.Input("specific_year_picker", "value"),
              dash.dependencies.Input("column_picker", "value"),
              dash.dependencies.Input("categories_picker", "value")])
-        def update_scatter_kill_wound_selected_group_and_year(selected_points, year_range, specified_year, selected_col, selected_cat):
-            year_range = [specified_year, specified_year] if specified_year else year_range
-            df = self.get_backend_data_frame_for_viewing(year_range=year_range, selected_col=selected_col,
-                                                         selected_cat=selected_cat)
+        def update_pies_kill_wound_nationality_selected_points(selected_points, year_range, specified_year, selected_col, selected_cat):
+            df_col_list = [selected_col, "nkill", "nwound", "nkill+wound"]
 
             if selected_points and selected_points["points"]:
-                key_list = ["latitude", "longitude"]
-                df = pd.concat([df[df[key_list].isin([point["lat"], point["lon"]]).all(axis=1)] for point in selected_points["points"]]).reset_index()
+                df = pd.DataFrame([point["customdata"] for point in selected_points["points"]], columns=df_col_list[:-1])
+            else:
+                year_range = [specified_year, specified_year] if specified_year else year_range
+                df = self.get_backend_data_frame_for_viewing(year_range=year_range, selected_col=selected_col,
+                                                             selected_cat=selected_cat)
 
-            df = df.groupby([selected_col, "nkill", "nwound"]).size().reset_index(name="frequency")
-            fig = px.scatter(data_frame=df, x="nkill", y="nwound", color=selected_col)
+            df["nkill+wound"] = df["nkill"] + df["nwound"]
+            df = df[df_col_list].groupby(selected_col).sum().reset_index()
+
+            fig = make_subplots(rows=1, cols=len(df_col_list[1:]), specs=[[{"type": "domain"} for _ in range(len(df_col_list[1:]))]])
+            for index, pies_col in enumerate(df_col_list[1:]):
+                fig.add_trace(go.Pie(labels=df[selected_col].unique(), values=df[pies_col], name=pies_col), 1, index + 1)
+
             fig.update_layout(autosize=True, title="Detail View for Hovered Instance")
+            fig.update_traces(hole=.4, hoverinfo="label+percent+name")
 
             return fig
-
-        @self._app.callback(
-            dash.dependencies.Output("pie_year_target_selected_group_fig", "figure"),
-            [dash.dependencies.Input("year_slider", "value"),
-             dash.dependencies.Input("map_year_attack_type_all_or_specified_fig", "selectedData"),
-             dash.dependencies.Input("categories_picker", "value")])
-        def update_pie_attack_target_selected_group(year_range, selected_points, selected_group):
-            if selected_points and selected_points["points"]:
-                df_selected_points = pd.DataFrame([row["customdata"] for row in selected_points["points"]],
-                                                  columns=["gname", "latitude", "longitude"])
-            else:
-                df_selected_points = self._data_handler.get_data_frame_original
-                df_selected_points = df_selected_points[df_selected_points["gname"].isin(selected_group)][
-                    ["gname", "latitude", "longitude"]]
-
-            df = self._data_handler.get_data_frame_original
-            df = df[df["iyear"].between(year_range[0], year_range[1], inclusive=True)]
-            df = df[df["gname"].isin(selected_group)]
-            df = df[df["latitude"].isin(df_selected_points["latitude"])]
-            df = df[df["longitude"].isin(df_selected_points["longitude"])]
-
-            df_target = df.groupby(["targtype1_txt"]).size().reset_index(name="frequency")
-
-            fig_pie = px.pie(data_frame=df_target, values="frequency", names="targtype1_txt", template="ggplot2")
-            fig_pie.update_traces(textposition="inside", textinfo="percent+label")
-            fig_pie.update_layout(showlegend=False, autosize=True,
-                                  title="Target Type by Selected Attacks")
-
-            return fig_pie
 
         @self._app.callback(
             dash.dependencies.Output("pca", "figure"),
