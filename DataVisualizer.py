@@ -76,13 +76,31 @@ class DataVisualizer(object):
                     html.H5(children="Detail Categories Picker"),
                     dcc.Dropdown(id="categories_picker", multi=True),
 
-                    html.H5(children="PCA Category View Picker"),
+                    html.H5(children="PCA Pivot Picker"),
                     dcc.Dropdown(
-                        id="pca_view_picker",
+                        id="pca_pivot_picker",
                         options=[{"label": col, "value": col} for col in
                                  self._data_handler.get_data_frame_original.columns],
                         value=self._default_pca_pick
-                    )
+                    ),
+
+                    html.H5(children="PCA Numeric Columns Picker"),
+                    dcc.Dropdown(
+                        id="pca_numeric_cols_picker",
+                        options=[{"label": col, "value": col} for col in self._data_handler.get_numeric_columns],
+                        value=self._data_handler.get_numeric_columns,
+                        multi=True
+                    ),
+
+                    html.H5(children="K Means Random State Parameter"),
+                    dcc.Input(
+                        id="ml_random_state_setup",
+                        type="number",
+                        value=5
+                    ),
+
+                    html.H5(children="K Means 3D Scatter Axis Picker"),
+                    dcc.Checklist(id="ml_axis_picker")
                 ]
             ),
 
@@ -133,12 +151,25 @@ class DataVisualizer(object):
                             html.Div(
                                 id="screen20",
                                 children=[
-                                    dcc.Graph(id="pca", className="graph_style")
+                                    dcc.Graph(id="clustering", className="graph_style")
                                 ]
                             ),
                             html.Div(
                                 id="screen21",
-                                children="ML Prediction YO!!"
+                                children=[
+                                    html.Div(
+                                        id="screen210",
+                                        children=[
+                                            dcc.Graph(id="pca", className="graph_style"),
+                                        ]
+                                    ),
+                                    html.Div(
+                                        id="screen211",
+                                        children=[
+                                            dcc.Graph(id="heatmap_correlation_selected_cols", className="graph_style")
+                                        ]
+                                    )
+                                ]
                             )
                         ]
                     )
@@ -155,7 +186,7 @@ class DataVisualizer(object):
             df = self._data_handler.get_data_frame_original
 
             all_cat = [{"label": col, "value": col} for col in self._data_handler.get_data_frame_original[selected_col].unique()]
-            reserved_cat = DataHandler.get_top_categories(data_frame=df, target_col=selected_col, number_of_reserved=self._default_number_of_reserved)
+            reserved_cat = DataHandler.get_top_categories(data_frame=df, target_cols=selected_col, number_of_reserved=self._default_number_of_reserved)
             return all_cat, reserved_cat
 
         @self._app.callback(
@@ -164,6 +195,14 @@ class DataVisualizer(object):
         )
         def update_specific_year_picker(selected_bar):
             return selected_bar["points"][0]["customdata"][0] if selected_bar and selected_bar["points"] else None
+
+        @self._app.callback(
+            dash.dependencies.Output("ml_axis_picker", "options"),
+            dash.dependencies.Output("ml_axis_picker", "value"),
+            [dash.dependencies.Input("pca_numeric_cols_picker", "value")]
+        )
+        def update_ml_axis_picker(selected_features):
+            return [{"label": col, "value": col} for col in selected_features], selected_features[:3]
 
         @self._app.callback(
             dash.dependencies.Output("bar_year_attack_type_all_fig", "figure"),
@@ -200,7 +239,7 @@ class DataVisualizer(object):
             df = df.pivot(index="weekday", columns="month", values="frequency")
             df = df.rename(index=day_order).rename(columns=month_order)
 
-            fig = px.imshow(df.values, labels=dict(x="Month of Year", y="Day of Week", color="Productivity"), x=df.columns, y=df.index)
+            fig = px.imshow(df.values, labels=dict(x="Month of Year", y="Day of Week", color="Attack Times"), x=df.columns, y=df.index)
             fig.update_layout(autosize=True, title="Yearly Accumulated Attacks and Types")
 
             return fig
@@ -245,9 +284,9 @@ class DataVisualizer(object):
             df["nkill+wound"] = df["nkill"] + df["nwound"]
             df = df[df_col_list].groupby(selected_col).sum().reset_index()
 
-            fig = make_subplots(rows=1, cols=len(df_col_list[1:]), specs=[[{"type": "domain"} for _ in range(len(df_col_list[1:]))]])
+            fig = make_subplots(rows=len(df_col_list[1:]), cols=1, specs=[[{"type": "domain"}] for _ in range(len(df_col_list[1:]))])
             for index, pies_col in enumerate(df_col_list[1:]):
-                fig.add_trace(go.Pie(labels=df[selected_col].unique(), values=df[pies_col], name=pies_col), 1, index + 1)
+                fig.add_trace(go.Pie(labels=df[selected_col].unique(), values=df[pies_col], name=pies_col), index + 1, 1)
 
             fig.update_layout(autosize=True, title="Detail View for Hovered Instance")
             fig.update_traces(hole=.4, hoverinfo="label+percent+name")
@@ -255,24 +294,46 @@ class DataVisualizer(object):
             return fig
 
         @self._app.callback(
-            dash.dependencies.Output("pca", "figure"),
-            [dash.dependencies.Input("pca_view_picker", "value")])
-        def update_pca(picked_col):
-            picked_col = picked_col if picked_col else self._default_pca_pick
-            self._default_pca_pick = picked_col
+            dash.dependencies.Output("clustering", "figure"),
+            [dash.dependencies.Input("pca_pivot_picker", "value"),
+             dash.dependencies.Input("pca_numeric_cols_picker", "value"),
+             dash.dependencies.Input("ml_random_state_setup", "value"),
+             dash.dependencies.Input("ml_axis_picker", "value")])
+        def update_clustering(selected_label_col, selected_calc_col, random, axis):
+            selected_label_col = selected_label_col if selected_label_col else self._default_pca_pick
+            self._default_pca_pick = selected_label_col
 
-            df_pca = self._data_handler.get_data_frame_pca(picked_col)
-            df_pca = DataHandler.trim_categories(data_frame=df_pca, target_col=picked_col)
+            df_clustering = self._data_handler.get_data_frame_clustering(selected_label_col, selected_calc_col, random)
+            df_clustering = DataHandler.trim_categories(data_frame=df_clustering, target_cols=selected_label_col)
 
-            fig = px.scatter(data_frame=df_pca, x="x", y="y", color=picked_col)
-            fig.update_layout(legend=self._default_legend_style, autosize=True,
-                              title="PCA")
+            fig = px.scatter_3d(data_frame=df_clustering, x=axis[0], y=axis[1], z=axis[2], color=selected_label_col)
+            fig.update_layout(legend=self._default_legend_style, autosize=True, title="K Means Clustering")
             return fig
+
+        @self._app.callback(
+            dash.dependencies.Output("pca", "figure"),
+            dash.dependencies.Output("heatmap_correlation_selected_cols", "figure"),
+            [dash.dependencies.Input("pca_pivot_picker", "value"),
+             dash.dependencies.Input("pca_numeric_cols_picker", "value")])
+        def update_pca_and_heatmap_correlation_selected_cols(selected_label_col, selected_calc_col):
+            selected_label_col = selected_label_col if selected_label_col else self._default_pca_pick
+            self._default_pca_pick = selected_label_col
+
+            df_pca = self._data_handler.get_data_frame_pca(selected_label_col, selected_calc_col)
+            df_pca = DataHandler.trim_categories(data_frame=df_pca, target_cols=selected_label_col)
+
+            fig_pca = px.scatter_3d(data_frame=df_pca, x="P1", y="P2", z="P3", color=selected_label_col)
+            fig_pca.update_layout(legend=self._default_legend_style, autosize=True, title="PCA")
+
+            df_corr = self._data_handler.get_data_frame_original[selected_calc_col].corr()
+            fig_corr = px.imshow(df_corr.values, labels=dict(color="Corr"), x=df_corr.columns, y=df_corr.index)
+
+            return fig_pca, fig_corr
 
     def get_backend_data_frame_for_viewing(self, year_range, selected_col, selected_cat):
         df = self._data_handler.get_data_frame_original
 
-        df = DataHandler.trim_categories(data_frame=df, target_col=selected_col, designated_list=selected_cat)
+        df = DataHandler.trim_categories(data_frame=df, target_cols=selected_col, designated_list=selected_cat)
         df = df[df["iyear"].between(year_range[0], year_range[1], inclusive=True)]
 
         return df
