@@ -17,7 +17,7 @@ class DataVisualizer(object):
         self._data_handler = data_handler
 
         self._default_year_range = [1994, 2017]
-        self._default_number_of_reserved = 8
+        self._default_number_of_reserved = 5
         self._default_column_pick = self._data_handler.get_txt_columns[0]
         self._default_pca_pick = "region_txt"
 
@@ -46,61 +46,83 @@ class DataVisualizer(object):
             html.Div(
                 id="side_bar",
                 children=[
-                    html.H1(children="Project 2: Interactive Visual Analytics Dashboard"),
-                    html.Div(children="Yi-Chen Liu © 2020 Copyright held by the owner/author(s)."),
-
-                    html.H5(children="Year Range Picker"),
-                    dcc.RangeSlider(
-                        id="year_slider",
-                        min=self._data_handler.get_data_frame_original["iyear"].min(),
-                        max=self._data_handler.get_data_frame_original["iyear"].max(),
-                        value=self._default_year_range
+                    html.Div(
+                        id="side_bar_top",
+                        children=[
+                            html.H1(children="Project 2: Interactive Visual Analytics Dashboard"),
+                            html.Div(children="Yi-Chen Liu © 2020 Copyright held by the owner/author(s).")
+                        ]
                     ),
 
-                    html.H5(children="Specific Year Picker"),
-                    dcc.Dropdown(
-                        id="specific_year_picker",
-                        options=[{"label": year, "value": year} for year in
-                                 self._data_handler.get_data_frame_original["iyear"].unique()],
-                        placeholder="Select a year"
+                    html.Div(
+                        id="side_bar_bottom",
+                        children=[
+                            html.Div(
+                                id="side_bar_bottom0",
+                                children=[
+                                    html.H5(children="Year Range Picker"),
+                                    dcc.RangeSlider(
+                                        id="year_slider",
+                                        min=self._data_handler.get_data_frame_original["iyear"].min(),
+                                        max=self._data_handler.get_data_frame_original["iyear"].max(),
+                                        value=self._default_year_range
+                                    ),
+
+                                    html.H5(children="Specific Year Picker"),
+                                    dcc.Dropdown(
+                                        id="specific_year_picker",
+                                        options=[{"label": year, "value": year} for year in
+                                                 self._data_handler.get_data_frame_original["iyear"].unique()],
+                                        placeholder="Select a year"
+                                    ),
+
+                                    html.H5(children="Column Picker"),
+                                    dcc.Dropdown(
+                                        id="column_picker",
+                                        options=[{"label": "View: " + col, "value": col} for col in
+                                                 self._data_handler.get_txt_columns],
+                                        value=self._default_column_pick,
+                                        placeholder="Select a column in the dataset"
+                                    ),
+
+                                    html.H5(children="Detail Categories Picker"),
+                                    dcc.Dropdown(id="categories_picker", multi=True)
+                                ]
+                            ),
+
+                            html.Div(
+                                id="side_bar_bottom1",
+                                children=[
+                                    html.H5(children="PCA Pivot Picker"),
+                                    dcc.Dropdown(
+                                        id="pca_pivot_picker",
+                                        options=[{"label": col, "value": col} for col in
+                                                 self._data_handler.get_data_frame_original.columns],
+                                        value=self._default_pca_pick
+                                    ),
+
+                                    html.H5(children="PCA Numeric Columns Picker"),
+                                    dcc.Dropdown(
+                                        id="pca_numeric_cols_picker",
+                                        options=[{"label": col, "value": col} for col in
+                                                 self._data_handler.get_numeric_columns],
+                                        value=self._data_handler.get_numeric_columns,
+                                        multi=True
+                                    ),
+
+                                    html.H5(children="K Means Random State Parameter"),
+                                    dcc.Input(
+                                        id="ml_random_state_setup",
+                                        type="number",
+                                        value=5
+                                    ),
+
+                                    html.H5(children="K Means 3D Scatter Axis Picker"),
+                                    dcc.Checklist(id="ml_axis_picker")
+                                ]
+                            )
+                        ]
                     ),
-
-                    html.H5(children="Column Picker"),
-                    dcc.Dropdown(
-                        id="column_picker",
-                        options=[{"label": "View: " + col, "value": col} for col in self._data_handler.get_txt_columns],
-                        value=self._default_column_pick,
-                        placeholder="Select a column in the dataset"
-                    ),
-
-                    html.H5(children="Detail Categories Picker"),
-                    dcc.Dropdown(id="categories_picker", multi=True),
-
-                    html.H5(children="PCA Pivot Picker"),
-                    dcc.Dropdown(
-                        id="pca_pivot_picker",
-                        options=[{"label": col, "value": col} for col in
-                                 self._data_handler.get_data_frame_original.columns],
-                        value=self._default_pca_pick
-                    ),
-
-                    html.H5(children="PCA Numeric Columns Picker"),
-                    dcc.Dropdown(
-                        id="pca_numeric_cols_picker",
-                        options=[{"label": col, "value": col} for col in self._data_handler.get_numeric_columns],
-                        value=self._data_handler.get_numeric_columns,
-                        multi=True
-                    ),
-
-                    html.H5(children="K Means Random State Parameter"),
-                    dcc.Input(
-                        id="ml_random_state_setup",
-                        type="number",
-                        value=5
-                    ),
-
-                    html.H5(children="K Means 3D Scatter Axis Picker"),
-                    dcc.Checklist(id="ml_axis_picker")
                 ]
             ),
 
@@ -312,7 +334,6 @@ class DataVisualizer(object):
 
         @self._app.callback(
             dash.dependencies.Output("pca", "figure"),
-            dash.dependencies.Output("heatmap_correlation_selected_cols", "figure"),
             [dash.dependencies.Input("pca_pivot_picker", "value"),
              dash.dependencies.Input("pca_numeric_cols_picker", "value")])
         def update_pca_and_heatmap_correlation_selected_cols(selected_label_col, selected_calc_col):
@@ -322,13 +343,19 @@ class DataVisualizer(object):
             df_pca = self._data_handler.get_data_frame_pca(selected_label_col, selected_calc_col)
             df_pca = DataHandler.trim_categories(data_frame=df_pca, target_cols=selected_label_col)
 
-            fig_pca = px.scatter_3d(data_frame=df_pca, x="P1", y="P2", z="P3", color=selected_label_col)
-            fig_pca.update_layout(legend=self._default_legend_style, autosize=True, title="PCA")
+            fig = px.scatter_3d(data_frame=df_pca, x="P1", y="P2", z="P3", color=selected_label_col)
+            fig.update_layout(legend=self._default_legend_style, autosize=True, title="PCA")
 
-            df_corr = self._data_handler.get_data_frame_original[selected_calc_col].corr()
-            fig_corr = px.imshow(df_corr.values, labels=dict(color="Corr"), x=df_corr.columns, y=df_corr.index)
+            return fig
 
-            return fig_pca, fig_corr
+        @self._app.callback(
+            dash.dependencies.Output("heatmap_correlation_selected_cols", "figure"),
+            [dash.dependencies.Input("pca_numeric_cols_picker", "value")])
+        def update_heatmap_correlation_selected_cols(selected_calc_col):
+            df = self._data_handler.get_data_frame_original[selected_calc_col].corr()
+            fig = px.imshow(df.values, labels=dict(color="Corr"), x=df.columns, y=df.index)
+
+            return fig
 
     def get_backend_data_frame_for_viewing(self, year_range, selected_col, selected_cat):
         df = self._data_handler.get_data_frame_original
