@@ -33,13 +33,11 @@ class DataVisualizer(object):
             )
         )
 
-        self._default_color_set = {
+        self._default_colors = {
             "screen1": {"light": "#C4DBFF", "dark": "#202E45"},
             "screen2": {"light": "#C1FFFA", "dark": "#10523E"},
             "screen3": {"light": "#FDDFD5", "dark": "#3A0000"}
         }
-
-        self._default_color_scale = lambda steps, c_from, c_to: [color.hex for color in list(Color(c_from).range_to(Color(c_to), steps))]
 
         self._mapbox_access_token = "pk.eyJ1IjoibGVvMTk5MDA3MjMiLCJhIjoiY2toMTM0NGVqMGFzdzJycnh0M3RpNnd6cSJ9.HI8SD_-Mbl2Cwa2c-W9PNA"
         self._mapbox_style = "mapbox://styles/leo19900723/ckh13dngl0b6s19nw1vm9h9bq"
@@ -77,21 +75,19 @@ class DataVisualizer(object):
                                 children=[
                                     html.H5(children="Year Range Picker"),
                                     html.Div(children=[
-                                            dcc.RangeSlider(
-                                                id="year_slider",
-                                                min=self._data_handler.get_data_frame_original["iyear"].min(),
-                                                max=self._data_handler.get_data_frame_original["iyear"].max(),
-                                                value=self._default_year_range
-                                            )
-                                        ],
+                                        dcc.RangeSlider(
+                                            id="year_slider",
+                                            min=self._data_handler.get_data_frame_original["iyear"].min(),
+                                            max=self._data_handler.get_data_frame_original["iyear"].max(),
+                                            value=self._default_year_range
+                                        )
+                                    ],
                                         style={"padding-left": "5%", "padding-right": "5%"}
                                     ),
 
                                     html.H5(children="Specific Year Picker"),
                                     dcc.Dropdown(
                                         id="specific_year_picker",
-                                        options=[{"label": year, "value": year} for year in
-                                                 self._data_handler.get_data_frame_original["iyear"].unique()],
                                         placeholder="Select a year"
                                     ),
 
@@ -112,7 +108,7 @@ class DataVisualizer(object):
                             html.Div(
                                 id="side_bar_bottom1",
                                 children=[
-                                    html.H5(children="PCA/ K-Means Target Picker"),
+                                    html.H5(children="PCA Target Picker"),
                                     dcc.Dropdown(
                                         id="ml_target_picker",
                                         options=[{"label": col, "value": col} for col in
@@ -248,10 +244,14 @@ class DataVisualizer(object):
 
         @self._app.callback(
             dash.dependencies.Output("specific_year_picker", "value"),
-            [dash.dependencies.Input("bar_year_attack_type_all_fig", "selectedData")]
+            dash.dependencies.Output("specific_year_picker", "options"),
+            [dash.dependencies.Input("year_slider", "value"),
+             dash.dependencies.Input("bar_year_attack_type_all_fig", "selectedData")]
         )
-        def update_specific_year_picker(selected_bar):
-            return selected_bar["points"][0]["customdata"][0] if selected_bar and selected_bar["points"] else None
+        def update_specific_year_picker(year_range, selected_bar):
+            value = selected_bar["points"][0]["customdata"][0] if selected_bar and selected_bar["points"] else None
+            options = [{"label": year, "value": year} for year in range(year_range[0], year_range[1] + 1)]
+            return value, options
 
         @self._app.callback(
             dash.dependencies.Output("ml_axis_picker", "options"),
@@ -266,7 +266,7 @@ class DataVisualizer(object):
             [dash.dependencies.Input("year_slider", "value"),
              dash.dependencies.Input("column_picker", "value")])
         def update_bar_year_attack_type_all_fig(year_range, selected_col):
-            df = self.get_backend_data_frame_for_viewing(year_range=year_range, selected_col=selected_col)
+            df = self._get_backend_data_frame_for_viewing(year_range=year_range, selected_col=selected_col)
             df = df.groupby(["iyear"]).size().reset_index(name="frequency")
 
             fig = px.bar(data_frame=df, x="iyear", y="frequency", text="frequency", custom_data=["iyear"])
@@ -275,8 +275,9 @@ class DataVisualizer(object):
                               textposition="outside",
                               marker=dict(
                                   color=df["iyear"],
-                                  colorscale=self._default_color_scale(len(df["iyear"].unique()), self._default_color_set["screen1"]["light"], self._default_color_set["screen1"]["dark"]))
-                              )
+                                  colorscale=DataVisualizer._get_color_scale(len(df["iyear"].unique()),
+                                                                             self._default_colors["screen1"]["light"],
+                                                                             self._default_colors["screen1"]["dark"])))
 
             fig.update_layout(autosize=True,
                               showlegend=False,
@@ -284,15 +285,14 @@ class DataVisualizer(object):
                               margin=go.layout.Margin(l=20, r=20, t=20, b=20),
                               paper_bgcolor="rgba(0,0,0,0)",
                               plot_bgcolor="rgba(0,0,0,0)",
-                              font=dict(color=self._default_color_set["screen1"]["light"]),
+                              font=dict(color=self._default_colors["screen1"]["light"]),
                               xaxis=dict(
                                   title=None,
                                   showgrid=False),
                               yaxis=dict(
                                   title=None,
                                   showticklabels=False,
-                                  showgrid=False),
-                              )
+                                  showgrid=False))
 
             return fig
 
@@ -308,7 +308,7 @@ class DataVisualizer(object):
                 return self._default_plain_fig
 
             year_range = [specified_year, specified_year] if specified_year else year_range
-            df = self.get_backend_data_frame_for_viewing(year_range=year_range, selected_col=selected_col)
+            df = self._get_backend_data_frame_for_viewing(year_range=year_range, selected_col=selected_col)
 
             month_order = dict(zip(range(len(calendar.month_name)), list(calendar.month_abbr)))
             day_order = dict(zip(range(len(calendar.day_name)), list(calendar.day_abbr)))
@@ -325,29 +325,28 @@ class DataVisualizer(object):
             for n, row in enumerate(df.values):
                 for m, val in enumerate(row):
                     annotations.append(dict(
-                            showarrow=False,
-                            text="<b>" + str(df.values[n][m]) + "<b>",
-                            xref="x",
-                            yref="y",
-                            x=df.columns[m],
-                            y=df.index[n],
-                        ))
+                        showarrow=False,
+                        text="<b>" + str(df.values[n][m]) + "<b>",
+                        xref="x",
+                        yref="y",
+                        x=df.columns[m],
+                        y=df.index[n]))
 
-            fig = go.Figure(data=go.Heatmap(
-                z=df.values,
-                x=df.columns,
-                y=df.index,
-                colorscale=[[0, self._default_color_set["screen1"]["dark"]], [1, self._default_color_set["screen1"]["light"]]])
-            )
+            fig = go.Figure(
+                data=go.Heatmap(
+                    z=df.values,
+                    x=df.columns,
+                    y=df.index,
+                    colorscale=[[0, self._default_colors["screen1"]["dark"]],
+                                [1, self._default_colors["screen1"]["light"]]]))
 
             fig.update_layout(autosize=True,
                               showlegend=False,
                               margin=go.layout.Margin(l=20, r=20, t=20, b=20),
                               paper_bgcolor="rgba(0,0,0,0)",
                               plot_bgcolor="rgba(0,0,0,0)",
-                              font=dict(color=self._default_color_set["screen1"]["light"]),
-                              annotations=annotations
-                              )
+                              font=dict(color=self._default_colors["screen1"]["light"]),
+                              annotations=annotations)
 
             return fig
 
@@ -364,8 +363,8 @@ class DataVisualizer(object):
                 return self._default_plain_fig
 
             year_range = [specified_year, specified_year] if specified_year else year_range
-            df = self.get_backend_data_frame_for_viewing(year_range=year_range, selected_col=selected_col,
-                                                         selected_cat=selected_cat)
+            df = self._get_backend_data_frame_for_viewing(year_range=year_range, selected_col=selected_col,
+                                                          selected_cat=selected_cat)
 
             df_m = df[[selected_col, "latitude", "longitude", "nkill", "nwound"]].groupby(
                 [selected_col, "latitude", "longitude"]).sum()
@@ -379,8 +378,7 @@ class DataVisualizer(object):
             fig.update_layout(autosize=True,
                               showlegend=False,
                               margin=go.layout.Margin(l=0, r=0, t=0, b=0),
-                              mapbox=dict(accesstoken=self._mapbox_access_token, style=self._mapbox_style)
-                              )
+                              mapbox=dict(accesstoken=self._mapbox_access_token, style=self._mapbox_style))
 
             return fig
 
@@ -405,8 +403,8 @@ class DataVisualizer(object):
                                   columns=df_col_list[:-1])
             else:
                 year_range = [specified_year, specified_year] if specified_year else year_range
-                df = self.get_backend_data_frame_for_viewing(year_range=year_range, selected_col=selected_col,
-                                                             selected_cat=selected_cat)
+                df = self._get_backend_data_frame_for_viewing(year_range=year_range, selected_col=selected_col,
+                                                              selected_cat=selected_cat)
 
             df["nkill+wound"] = df["nkill"] + df["nwound"]
             df = df[df_col_list].groupby(selected_col).sum().reset_index()
@@ -419,14 +417,16 @@ class DataVisualizer(object):
 
             fig.update_traces(hole=.4,
                               hoverinfo="label+percent+name",
-                              marker=dict(colors=self._default_color_scale(len(selected_cat), self._default_color_set["screen2"]["light"], self._default_color_set["screen2"]["dark"])))
+                              marker=dict(
+                                  colors=DataVisualizer._get_color_scale(len(selected_cat),
+                                                                         self._default_colors["screen2"]["light"],
+                                                                         self._default_colors["screen2"]["dark"])))
 
             fig.update_layout(autosize=True,
                               showlegend=False,
-                              font=dict(color=self._default_color_set["screen2"]["light"]),
+                              font=dict(color=self._default_colors["screen2"]["light"]),
                               paper_bgcolor="rgba(0,0,0,0)",
-                              plot_bgcolor="rgba(0,0,0,0)"
-                              )
+                              plot_bgcolor="rgba(0,0,0,0)")
             return fig
 
         @self._app.callback(
@@ -438,7 +438,7 @@ class DataVisualizer(object):
         def update_clustering(selected_label_col, selected_calc_col, random, axis):
 
             # Wait for input fields initialization.
-            if not(selected_label_col and selected_calc_col and random and axis):
+            if not (selected_label_col and selected_calc_col and random and axis):
                 return self._default_plain_fig
 
             selected_label_col = selected_label_col if selected_label_col else self._default_pca_pick
@@ -447,25 +447,26 @@ class DataVisualizer(object):
             df_clustering = self._data_handler.get_data_frame_clustering(selected_label_col, selected_calc_col, random)
             df_clustering = DataHandler.trim_categories(data_frame=df_clustering, target_cols=selected_label_col)
 
-            fig = px.scatter_3d(data_frame=df_clustering, x=axis[0], y=axis[1], z=axis[2], color=selected_label_col, symbol=selected_label_col)
+            fig = px.scatter_3d(data_frame=df_clustering, x=axis[0], y=axis[1], z=axis[2], color=selected_label_col,
+                                symbol=selected_label_col)
 
             axis_template = {
                 "showbackground": False,
-                "gridcolor": self._default_color_set["screen3"]["light"],
-                "zerolinecolor": self._default_color_set["screen3"]["light"],
+                "gridcolor": self._default_colors["screen3"]["light"],
+                "zerolinecolor": self._default_colors["screen3"]["light"],
             }
 
             fig.update_layout(autosize=True,
                               title="K-Means Clustering",
                               showlegend=False,
-                              font=dict(color=self._default_color_set["screen3"]["light"]),
+                              margin=go.layout.Margin(l=0, r=0, t=50, b=0),
+                              font=dict(color=self._default_colors["screen3"]["light"]),
                               paper_bgcolor="rgba(0,0,0,0)",
                               plot_bgcolor="rgba(0,0,0,0)",
                               scene=dict(
                                   xaxis=axis_template,
                                   yaxis=axis_template,
-                                  zaxis=axis_template)
-                              )
+                                  zaxis=axis_template))
 
             return fig
 
@@ -476,7 +477,7 @@ class DataVisualizer(object):
         def update_pca(selected_label_col, selected_calc_col):
 
             # Wait for input fields initialization.
-            if not(selected_label_col and selected_calc_col):
+            if not (selected_label_col and selected_calc_col):
                 return self._default_plain_fig
 
             selected_label_col = selected_label_col if selected_label_col else self._default_pca_pick
@@ -485,25 +486,26 @@ class DataVisualizer(object):
             df_pca = self._data_handler.get_data_frame_pca(selected_label_col, selected_calc_col)
             df_pca = DataHandler.trim_categories(data_frame=df_pca, target_cols=selected_label_col)
 
-            fig = px.scatter_3d(data_frame=df_pca, x="P1", y="P2", z="P3", color=selected_label_col, symbol=selected_label_col)
+            fig = px.scatter_3d(data_frame=df_pca, x="P1", y="P2", z="P3", color=selected_label_col,
+                                symbol=selected_label_col)
 
             axis_template = {
                 "showbackground": False,
-                "gridcolor": self._default_color_set["screen3"]["light"],
-                "zerolinecolor": self._default_color_set["screen3"]["light"],
+                "gridcolor": self._default_colors["screen3"]["light"],
+                "zerolinecolor": self._default_colors["screen3"]["light"],
             }
 
             fig.update_layout(autosize=True,
                               title="PCA",
                               showlegend=False,
-                              font=dict(color=self._default_color_set["screen3"]["light"]),
+                              margin=go.layout.Margin(l=0, r=0, t=50, b=0),
+                              font=dict(color=self._default_colors["screen3"]["light"]),
                               paper_bgcolor="rgba(0,0,0,0)",
                               plot_bgcolor="rgba(0,0,0,0)",
                               scene=dict(
                                   xaxis=axis_template,
                                   yaxis=axis_template,
-                                  zaxis=axis_template)
-                              )
+                                  zaxis=axis_template))
 
             return fig
 
@@ -517,32 +519,34 @@ class DataVisualizer(object):
                 return self._default_plain_fig
 
             df = self._data_handler.get_data_frame_original[selected_calc_col].corr()
-            fig = px.imshow(df.values, labels=dict(color="Corr"), x=df.columns, y=df.index)
 
             fig = go.Figure(data=go.Heatmap(
                 z=df.values,
                 x=df.columns,
                 y=df.index,
-                colorscale=[[0, self._default_color_set["screen3"]["dark"]], [1, self._default_color_set["screen3"]["light"]]])
-            )
+                colorscale=[[0, self._default_colors["screen3"]["dark"]],
+                            [1, self._default_colors["screen3"]["light"]]]))
 
             fig.update_layout(autosize=True,
                               showlegend=False,
-                              margin=go.layout.Margin(l=20, r=20, t=20, b=20),
+                              margin=go.layout.Margin(l=0, r=0, t=10, b=0),
                               paper_bgcolor="rgba(0,0,0,0)",
                               plot_bgcolor="rgba(0,0,0,0)",
-                              font=dict(color=self._default_color_set["screen3"]["light"])
-                              )
+                              font=dict(color=self._default_colors["screen3"]["light"]))
 
             return fig
 
-    def get_backend_data_frame_for_viewing(self, year_range, selected_col, selected_cat=None):
+    def _get_backend_data_frame_for_viewing(self, year_range, selected_col, selected_cat=None):
         df = self._data_handler.get_data_frame_original
 
         df = DataHandler.trim_categories(data_frame=df, target_cols=selected_col, designated_list=selected_cat)
         df = df[df["iyear"].between(year_range[0], year_range[1], inclusive=True)]
 
         return df
+
+    @staticmethod
+    def _get_color_scale(steps, c_from, c_to):
+        return [color.hex for color in list(Color(c_from).range_to(Color(c_to), steps))]
 
     def run_server(self):
         self._app.run_server(debug=True)
