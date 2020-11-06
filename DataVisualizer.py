@@ -13,14 +13,17 @@ from colour import Color
 
 class DataVisualizer(object):
 
-    def __init__(self, app, data_handler):
-        self._app = app
+    def __init__(self, data_handler, app):
         self._data_handler = data_handler
+        self._app = app
+
+        self._default_web_title = "Project 2: Interactive Visual Analytics Dashboard"
+        self._default_web_credit = "Yi-Chen Liu © 2020 Copyright held by the owner/author(s)."
 
         self._default_year_range = [1994, 2017]
         self._default_number_of_reserved = 8
         self._default_column_pick = self._data_handler.get_txt_columns[0]
-        self._default_pca_pick = "region_txt"
+        self._default_pca_target_pick = "region_txt"
 
         self._default_plain_fig = dict(
             data=[dict(x=0, y=0)],
@@ -49,12 +52,12 @@ class DataVisualizer(object):
         external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 
         return DataVisualizer(
-            app=dash.Dash(__name__, external_stylesheets=external_stylesheets),
-            data_handler=DataHandler.construct_from_csv(path)
+            data_handler=DataHandler.construct_from_csv(path),
+            app=dash.Dash(__name__, external_stylesheets=external_stylesheets)
         )
 
     def set_layout(self):
-
+        self._app.title = self._default_web_title
         self._app.layout = html.Div(id="main", children=[
             html.Div(
                 id="side_bar",
@@ -62,8 +65,8 @@ class DataVisualizer(object):
                     html.Div(
                         id="side_bar_top",
                         children=[
-                            html.H1(children="Project 2: Interactive Visual Analytics Dashboard"),
-                            html.Div(children="Yi-Chen Liu © 2020 Copyright held by the owner/author(s).")
+                            html.H1(children=self._default_web_title),
+                            html.Div(children=self._default_web_credit)
                         ]
                     ),
 
@@ -74,16 +77,14 @@ class DataVisualizer(object):
                                 id="side_bar_bottom0",
                                 children=[
                                     html.H5(children="Year Range Picker"),
-                                    html.Div(children=[
+                                    html.Div(id="year_slider_frame", children=[
                                         dcc.RangeSlider(
                                             id="year_slider",
                                             min=self._data_handler.get_data_frame_original["iyear"].min(),
                                             max=self._data_handler.get_data_frame_original["iyear"].max(),
                                             value=self._default_year_range
                                         )
-                                    ],
-                                        style={"padding-left": "5%", "padding-right": "5%"}
-                                    ),
+                                    ]),
 
                                     html.H5(children="Specific Year Picker"),
                                     dcc.Dropdown(
@@ -113,7 +114,7 @@ class DataVisualizer(object):
                                         id="ml_target_picker",
                                         options=[{"label": col, "value": col} for col in
                                                  self._data_handler.get_data_frame_original.columns],
-                                        value=self._default_pca_pick
+                                        value=self._default_pca_target_pick
                                     ),
 
                                     html.H5(children="PCA/ K-Means Feature Columns Picker"),
@@ -132,8 +133,20 @@ class DataVisualizer(object):
                                         value=5
                                     ),
 
-                                    html.H5(children="K-Means 3D Scatter Axis Picker"),
-                                    dcc.Checklist(id="ml_axis_picker")
+                                    html.H5(children="K-Means 3D Scatter Graph Axis Picker"),
+                                    html.Div(id="ml_axis_picker", children=[
+                                        html.Div(id="ml_axis_picker_x_frame", children=[
+                                            dcc.Dropdown(id="ml_axis_picker_x", placeholder="Select x axis")
+                                        ]),
+
+                                        html.Div(id="ml_axis_picker_y_frame", children=[
+                                            dcc.Dropdown(id="ml_axis_picker_y", placeholder="Select y axis")
+                                        ]),
+
+                                        html.Div(id="ml_axis_picker_z_frame", children=[
+                                            dcc.Dropdown(id="ml_axis_picker_z", placeholder="Select z axis")
+                                        ])
+                                    ])
                                 ]
                             )
                         ]
@@ -249,17 +262,28 @@ class DataVisualizer(object):
              dash.dependencies.Input("bar_year_attack_type_all_fig", "selectedData")]
         )
         def update_specific_year_picker(year_range, selected_bar):
-            value = selected_bar["points"][0]["customdata"][0] if selected_bar and selected_bar["points"] else None
+            value = selected_bar["points"][0]["x"] if selected_bar and selected_bar["points"] else None
             options = [{"label": year, "value": year} for year in range(year_range[0], year_range[1] + 1)]
             return value, options
 
         @self._app.callback(
-            dash.dependencies.Output("ml_axis_picker", "options"),
-            dash.dependencies.Output("ml_axis_picker", "value"),
+            dash.dependencies.Output("ml_axis_picker_x", "options"),
+            dash.dependencies.Output("ml_axis_picker_x", "value"),
+            dash.dependencies.Output("ml_axis_picker_y", "options"),
+            dash.dependencies.Output("ml_axis_picker_y", "value"),
+            dash.dependencies.Output("ml_axis_picker_z", "options"),
+            dash.dependencies.Output("ml_axis_picker_z", "value"),
             [dash.dependencies.Input("ml_feature_cols_picker", "value")]
         )
         def update_ml_axis_picker(selected_features):
-            return [{"label": col, "value": col} for col in selected_features], selected_features[:3]
+            options = [{"label": col, "value": col} for col in selected_features]
+            return_settings = []
+
+            for axis_index in range(3):
+                return_settings.append(options)
+                return_settings.append(selected_features[axis_index])
+
+            return tuple(return_settings)
 
         @self._app.callback(
             dash.dependencies.Output("bar_year_attack_type_all_fig", "figure"),
@@ -269,7 +293,7 @@ class DataVisualizer(object):
             df = self._get_backend_data_frame_for_viewing(year_range=year_range, selected_col=selected_col)
             df = df.groupby(["iyear"]).size().reset_index(name="frequency")
 
-            fig = px.bar(data_frame=df, x="iyear", y="frequency", text="frequency", custom_data=["iyear"])
+            fig = px.bar(data_frame=df, x="iyear", y="frequency", text="frequency")
 
             fig.update_traces(opacity=1,
                               textposition="outside",
@@ -282,6 +306,7 @@ class DataVisualizer(object):
             fig.update_layout(autosize=True,
                               showlegend=False,
                               dragmode="select",
+                              hovermode="x",
                               margin=go.layout.Margin(l=20, r=20, t=20, b=20),
                               paper_bgcolor="rgba(0,0,0,0)",
                               plot_bgcolor="rgba(0,0,0,0)",
@@ -322,15 +347,15 @@ class DataVisualizer(object):
             df = df.rename(index=day_order).rename(columns=month_order)
 
             annotations = []
-            for n, row in enumerate(df.values):
-                for m, val in enumerate(row):
+            for row_index, row in enumerate(df.values):
+                for col_index, cell in enumerate(row):
                     annotations.append(dict(
                         showarrow=False,
-                        text="<b>" + str(df.values[n][m]) + "<b>",
+                        text="<b>" + str(df.values[row_index][col_index]) + "<b>",
                         xref="x",
                         yref="y",
-                        x=df.columns[m],
-                        y=df.index[n]))
+                        x=df.columns[col_index],
+                        y=df.index[row_index]))
 
             fig = go.Figure(
                 data=go.Heatmap(
@@ -411,9 +436,8 @@ class DataVisualizer(object):
 
             fig = make_subplots(rows=len(df_col_list[1:]), cols=1,
                                 specs=[[{"type": "domain"}] for _ in range(len(df_col_list[1:]))])
-            for index, pies_col in enumerate(df_col_list[1:]):
-                fig.add_trace(go.Pie(labels=df[selected_col].unique(), values=df[pies_col], name=pies_col), index + 1,
-                              1)
+            for index, pie_col in enumerate(df_col_list[1:]):
+                fig.add_trace(go.Pie(labels=df[selected_col].unique(), values=df[pie_col], name=pie_col), index + 1, 1)
 
             fig.update_traces(hole=.4,
                               hoverinfo="label+percent+name",
@@ -434,20 +458,22 @@ class DataVisualizer(object):
             [dash.dependencies.Input("ml_target_picker", "value"),
              dash.dependencies.Input("ml_feature_cols_picker", "value"),
              dash.dependencies.Input("ml_random_state_setup", "value"),
-             dash.dependencies.Input("ml_axis_picker", "value")])
-        def update_clustering(selected_label_col, selected_calc_col, random, axis):
+             dash.dependencies.Input("ml_axis_picker_x", "value"),
+             dash.dependencies.Input("ml_axis_picker_y", "value"),
+             dash.dependencies.Input("ml_axis_picker_z", "value")])
+        def update_clustering(selected_label_col, selected_calc_col, random, axis_x, axis_y, axis_z):
 
             # Wait for input fields initialization.
-            if not (selected_label_col and selected_calc_col and random and axis):
+            if not (selected_label_col and selected_calc_col and random and axis_x and axis_y and axis_z):
                 return self._default_plain_fig
 
-            selected_label_col = selected_label_col if selected_label_col else self._default_pca_pick
-            self._default_pca_pick = selected_label_col
+            selected_label_col = selected_label_col if selected_label_col else self._default_pca_target_pick
+            self._default_pca_target_pick = selected_label_col
 
             df_clustering = self._data_handler.get_data_frame_clustering(selected_label_col, selected_calc_col, random)
             df_clustering = DataHandler.trim_categories(data_frame=df_clustering, target_cols=selected_label_col)
 
-            fig = px.scatter_3d(data_frame=df_clustering, x=axis[0], y=axis[1], z=axis[2], color=selected_label_col,
+            fig = px.scatter_3d(data_frame=df_clustering, x=axis_x, y=axis_y, z=axis_z, color=selected_label_col,
                                 symbol=selected_label_col)
 
             axis_template = {
@@ -480,8 +506,8 @@ class DataVisualizer(object):
             if not (selected_label_col and selected_calc_col):
                 return self._default_plain_fig
 
-            selected_label_col = selected_label_col if selected_label_col else self._default_pca_pick
-            self._default_pca_pick = selected_label_col
+            selected_label_col = selected_label_col if selected_label_col else self._default_pca_target_pick
+            self._default_pca_target_pick = selected_label_col
 
             df_pca = self._data_handler.get_data_frame_pca(selected_label_col, selected_calc_col)
             df_pca = DataHandler.trim_categories(data_frame=df_pca, target_cols=selected_label_col)

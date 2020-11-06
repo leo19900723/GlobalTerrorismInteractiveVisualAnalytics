@@ -8,7 +8,6 @@ div {
 }
 
 #main {
-    margin:0;
     height: 100vh;
     width: 100vw;
     position: absolute;
@@ -53,6 +52,29 @@ div {
     scroll-snap-align: start;
 
     min-height: 100%;
+}
+
+#year_slider_frame {
+    padding-left: 2%;
+    padding-right: 2%;
+}
+
+#ml_axis_picker {
+    display: flex;
+    flex-direction: row;
+}
+
+#ml_axis_picker_x_frame, #ml_axis_picker_z_frame {
+    flex-grow: 1;
+    flex-basis: 0;
+}
+
+#ml_axis_picker_y_frame {
+    flex-grow: 1;
+    flex-basis: 0;
+
+    margin-left: 2%;
+    margin-right: 2%;
 }
 
 #content {
