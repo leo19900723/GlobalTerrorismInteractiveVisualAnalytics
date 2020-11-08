@@ -134,25 +134,40 @@ class DataVisualizer(object):
                                         multi=True
                                     ),
 
-                                    html.H5(children="K-Means Random State Parameter"),
-                                    dcc.Input(
-                                        id="ml_random_state_setup",
-                                        type="number",
-                                        value=5
-                                    ),
+                                    html.Div(id="side_bar_bottom1_parameters", children=[
+                                        html.Div(id="ml_num_of_pc_frame", children=[
+                                            html.H6(children="Principle Columns"),
+                                            dcc.Input(
+                                                id="ml_num_of_pc_setup",
+                                                type="number",
+                                                value=6
+                                            )
+                                        ]),
 
-                                    html.H5(children="K-Means 3D Scatter Graph Axis Picker"),
+                                        html.Div(id="ml_random_state_frame", children=[
+                                            html.H6(children="Random State"),
+                                            dcc.Input(
+                                                id="ml_random_state_setup",
+                                                type="number",
+                                                value=5
+                                            )
+                                        ]),
+                                    ]),
+
                                     html.Div(id="ml_axis_picker", children=[
                                         html.Div(id="ml_axis_picker_x_frame", children=[
-                                            dcc.Dropdown(id="ml_axis_picker_x", placeholder="Select x axis")
+                                            html.H6(children="X-Axis for 3D"),
+                                            dcc.Dropdown(id="ml_axis_picker_x", placeholder="Select X-Axis")
                                         ]),
 
                                         html.Div(id="ml_axis_picker_y_frame", children=[
-                                            dcc.Dropdown(id="ml_axis_picker_y", placeholder="Select y axis")
+                                            html.H6(children="Y-Axis for 3D"),
+                                            dcc.Dropdown(id="ml_axis_picker_y", placeholder="Select Y-Axis")
                                         ]),
 
                                         html.Div(id="ml_axis_picker_z_frame", children=[
-                                            dcc.Dropdown(id="ml_axis_picker_z", placeholder="Select z axis")
+                                            html.H6(children="Z-Axis for 3D"),
+                                            dcc.Dropdown(id="ml_axis_picker_z", placeholder="Select Z-Axis")
                                         ])
                                     ])
                                 ]
@@ -217,30 +232,33 @@ class DataVisualizer(object):
                             html.Div(
                                 id="screen20",
                                 children=[
-                                    dcc.Graph(id="clustering",
-                                              figure=self._default_plain_fig,
-                                              className="graph_style")
+                                    html.Div(id="screen200", children=[
+                                        dcc.Graph(id="pca_2d_matrix",
+                                                  figure=self._default_plain_fig, className="graph_style")
+                                    ]),
+                                    html.Div(id="screen201", children=[
+                                        dcc.Graph(id="clustering_2d_matrix",
+                                                  figure=self._default_plain_fig, className="graph_style")
+                                    ])
                                 ]
                             ),
                             html.Div(
                                 id="screen21",
                                 children=[
-                                    html.Div(
-                                        id="screen210",
-                                        children=[
-                                            dcc.Graph(id="pca",
-                                                      figure=self._default_plain_fig,
-                                                      className="graph_style"),
-                                        ]
-                                    ),
-                                    html.Div(
-                                        id="screen211",
-                                        children=[
-                                            dcc.Graph(id="heatmap_correlation_selected_cols",
-                                                      figure=self._default_plain_fig,
-                                                      className="graph_style")
-                                        ]
-                                    )
+                                    html.Div(id="screen210", children=[
+                                        html.Div(id="screen2000", children=[
+                                            dcc.Graph(id="pca_3d",
+                                                      figure=self._default_plain_fig, className="graph_style")
+                                        ]),
+                                        html.Div(id="screen2001", children=[
+                                            dcc.Graph(id="clustering_3d",
+                                                      figure=self._default_plain_fig, className="graph_style")
+                                        ])
+                                    ]),
+                                    html.Div(id="screen211", children=[
+                                        dcc.Graph(id="heatmap_correlation_selected_cols",
+                                                  figure=self._default_plain_fig, className="graph_style")
+                                    ])
                                 ]
                             )
                         ]
@@ -281,15 +299,15 @@ class DataVisualizer(object):
             dash.dependencies.Output("ml_axis_picker_y", "value"),
             dash.dependencies.Output("ml_axis_picker_z", "options"),
             dash.dependencies.Output("ml_axis_picker_z", "value"),
-            [dash.dependencies.Input("ml_feature_cols_picker", "value")]
+            [dash.dependencies.Input("ml_num_of_pc_setup", "value")]
         )
-        def update_ml_axis_picker(selected_features):
-            options = [{"label": col, "value": col} for col in selected_features]
+        def update_ml_axis_picker(num_of_pc):
+            options = [{"label": "P" + str(i + 1), "value": "P" + str(i + 1)} for i in range(num_of_pc)]
             return_settings = []
 
             for axis_index in range(3):
                 return_settings.append(options)
-                return_settings.append(selected_features[axis_index])
+                return_settings.append(options[axis_index]["value"])
 
             return tuple(return_settings)
 
@@ -462,86 +480,98 @@ class DataVisualizer(object):
             return fig
 
         @self._app.callback(
-            dash.dependencies.Output("clustering", "figure"),
+            dash.dependencies.Output("pca_2d_matrix", "figure"),
+            dash.dependencies.Output("clustering_2d_matrix", "figure"),
+            dash.dependencies.Output("pca_3d", "figure"),
+            dash.dependencies.Output("clustering_3d", "figure"),
             [dash.dependencies.Input("ml_target_picker", "value"),
              dash.dependencies.Input("ml_feature_cols_picker", "value"),
+             dash.dependencies.Input("ml_num_of_pc_setup", "value"),
              dash.dependencies.Input("ml_random_state_setup", "value"),
              dash.dependencies.Input("ml_axis_picker_x", "value"),
              dash.dependencies.Input("ml_axis_picker_y", "value"),
              dash.dependencies.Input("ml_axis_picker_z", "value")])
-        def update_clustering(selected_label_col, selected_calc_col, random, axis_x, axis_y, axis_z):
+        def update_pca_clustering(selected_target, selected_cols, num_of_pc, random_state, axis_x, axis_y, axis_z):
+            all_cols = selected_cols + [selected_target]
+            dfs = {}
+            figs = []
 
             # Wait for input fields initialization.
-            if not (selected_label_col and selected_calc_col and random and axis_x and axis_y and axis_z):
-                return self._default_plain_fig
+            if not (selected_target and selected_cols):
+                return self._default_plain_fig, self._default_plain_fig
 
-            selected_label_col = selected_label_col if selected_label_col else self._default_pca_target_pick
-            self._default_pca_target_pick = selected_label_col
+            # Check whether there existed user-defined-target-col
+            selected_target = selected_target if selected_target else self._default_pca_target_pick
+            self._default_pca_target_pick = selected_target
 
-            df_clustering = self._data_handler.get_data_frame_clustering(selected_label_col, selected_calc_col, random)
-            df_clustering = DataHandler.trim_categories(data_frame=df_clustering, target_cols=selected_label_col)
+            # Compute PCA
+            dfs["PCA"] = self._data_handler.get_data_frame_original
+            dfs["PCA"] = dfs["PCA"][all_cols]
+            dfs["PCA"] = dfs["PCA"].dropna(subset=all_cols).reset_index()
 
-            fig = px.scatter_3d(data_frame=df_clustering, x=axis_x, y=axis_y, z=axis_z, color=selected_label_col,
-                                symbol=selected_label_col)
+            dfs["PCA"], total_var = DataHandler.get_pca(data_frame=dfs["PCA"], target=selected_target,
+                                                        num_of_pc=num_of_pc)
 
-            axis_template = {
-                "showbackground": False,
-                "gridcolor": self._default_colors["screen3"]["light"],
-                "zerolinecolor": self._default_colors["screen3"]["light"],
-            }
+            # Compute Clustering by using df["PCA"]
+            dfs["K-Means Clustering"] = DataHandler.get_clustering(data_frame=dfs["PCA"], target=selected_target,
+                                                                   random_state=random_state)
 
-            fig.update_layout(autosize=True,
-                              title="K-Means Clustering",
-                              showlegend=False,
-                              margin=go.layout.Margin(l=0, r=0, t=50, b=0),
-                              font=dict(color=self._default_colors["screen3"]["light"]),
-                              paper_bgcolor="rgba(0,0,0,0)",
-                              plot_bgcolor="rgba(0,0,0,0)",
-                              scene=dict(
-                                  xaxis=axis_template,
-                                  yaxis=axis_template,
-                                  zaxis=axis_template))
+            # Create Matrix figures - Meta
+            computed_feature_cols = ["P" + str(i + 1) for i in range(num_of_pc)]
 
-            return fig
+            labels = dict(zip(map(str, range(num_of_pc)), computed_feature_cols))
+            labels["color"] = selected_target
 
-        @self._app.callback(
-            dash.dependencies.Output("pca", "figure"),
-            [dash.dependencies.Input("ml_target_picker", "value"),
-             dash.dependencies.Input("ml_feature_cols_picker", "value")])
-        def update_pca(selected_label_col, selected_calc_col):
+            # Create Matrix figures
+            for key in dfs.keys():
+                figs.append(
+                    px.scatter_matrix(
+                        dfs[key],
+                        color=dfs[key][selected_target],
+                        dimensions=computed_feature_cols,
+                        labels=labels,
+                        template="simple_white"
+                    )
+                )
 
-            # Wait for input fields initialization.
-            if not (selected_label_col and selected_calc_col):
-                return self._default_plain_fig
+                figs[-1].update_traces(diagonal_visible=False, marker_coloraxis=None)
 
-            selected_label_col = selected_label_col if selected_label_col else self._default_pca_target_pick
-            self._default_pca_target_pick = selected_label_col
+                figs[-1].update_layout(autosize=True,
+                                       showlegend=False,
+                                       title=key,
+                                       margin=go.layout.Margin(l=0, r=0, t=50, b=0),
+                                       font=dict(color=self._default_colors["screen3"]["light"]),
+                                       paper_bgcolor="rgba(0,0,0,0)",
+                                       plot_bgcolor="rgba(0,0,0,0)")
 
-            df_pca = self._data_handler.get_data_frame_pca(selected_label_col, selected_calc_col)
-            df_pca = DataHandler.trim_categories(data_frame=df_pca, target_cols=selected_label_col)
+                figs[-1].update_xaxes(showgrid=False, zeroline=False)
+                figs[-1].update_yaxes(showgrid=False, zeroline=False)
 
-            fig = px.scatter_3d(data_frame=df_pca, x="P1", y="P2", z="P3", color=selected_label_col,
-                                symbol=selected_label_col)
+            # Create 3D figures
+            for key in dfs.keys():
+                figs.append(
+                    px.scatter_3d(data_frame=dfs[key],
+                                  x=axis_x,
+                                  y=axis_y,
+                                  z=axis_z,
+                                  color=dfs[key][selected_target],
+                                  template="simple_white"))
 
-            axis_template = {
-                "showbackground": False,
-                "gridcolor": self._default_colors["screen3"]["light"],
-                "zerolinecolor": self._default_colors["screen3"]["light"],
-            }
+                figs[-1].update_traces(marker_coloraxis=None)
 
-            fig.update_layout(autosize=True,
-                              title="PCA",
-                              showlegend=False,
-                              margin=go.layout.Margin(l=0, r=0, t=50, b=0),
-                              font=dict(color=self._default_colors["screen3"]["light"]),
-                              paper_bgcolor="rgba(0,0,0,0)",
-                              plot_bgcolor="rgba(0,0,0,0)",
-                              scene=dict(
-                                  xaxis=axis_template,
-                                  yaxis=axis_template,
-                                  zaxis=axis_template))
+                figs[-1].update_layout(autosize=True,
+                                       title=key,
+                                       showlegend=False,
+                                       margin=go.layout.Margin(l=0, r=0, t=50, b=0),
+                                       font=dict(color=self._default_colors["screen3"]["light"]),
+                                       paper_bgcolor="rgba(0,0,0,0)",
+                                       plot_bgcolor="rgba(0,0,0,0)",
+                                       scene=dict(
+                                           xaxis=dict(showbackground=False),
+                                           yaxis=dict(showbackground=False),
+                                           zaxis=dict(showbackground=False)))
 
-            return fig
+            return tuple(figs)
 
         @self._app.callback(
             dash.dependencies.Output("heatmap_correlation_selected_cols", "figure"),
@@ -563,7 +593,8 @@ class DataVisualizer(object):
 
             fig.update_layout(autosize=True,
                               showlegend=False,
-                              margin=go.layout.Margin(l=0, r=0, t=10, b=0),
+                              title="Correlation Matrix for Selected Columns",
+                              margin=go.layout.Margin(l=0, r=0, t=50, b=0),
                               paper_bgcolor="rgba(0,0,0,0)",
                               plot_bgcolor="rgba(0,0,0,0)",
                               font=dict(color=self._default_colors["screen3"]["light"]))

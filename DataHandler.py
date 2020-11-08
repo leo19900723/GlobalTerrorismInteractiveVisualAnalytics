@@ -40,36 +40,28 @@ class DataHandler(object):
         # Apply changes to original data_frame
         self.apply_last_update()
 
-    def get_data_frame_pca(self, tag, feature_cols):
-        feature_and_tag = feature_cols + [tag]
+    @staticmethod
+    def get_pca(data_frame, target, num_of_pc):
+        x = StandardScaler().fit_transform(data_frame.loc[:, data_frame.columns != target])
 
-        df = self._data_frame_original[feature_and_tag]
-        df = df.dropna(subset=feature_and_tag).reset_index()
-
-        x = StandardScaler().fit_transform(df[feature_cols])
-
-        pca = PCA(n_components=3)
+        pca = PCA(n_components=num_of_pc)
         principal_components = pca.fit_transform(x)
-        principal_df = pd.DataFrame(data=principal_components, columns=["P1", "P2", "P3"])
-        final_df = pd.concat([principal_df, df[tag]], axis=1)
+        principal_df = pd.DataFrame(data=principal_components, columns=["P" + str(i + 1) for i in range(num_of_pc)])
+        df_pca = pd.concat([principal_df, data_frame[target]], axis=1)
 
-        return final_df
+        return df_pca, pca.explained_variance_ratio_.sum()
 
-    def get_data_frame_clustering(self, tag, feature_cols, random=5):
-        feature_and_tag = feature_cols + [tag]
+    @staticmethod
+    def get_clustering(data_frame, target, random_state):
+        x = scale(data_frame.loc[:, data_frame.columns != target])
+        y = data_frame[target]
 
-        df = self._data_frame_original[feature_and_tag]
-        df = df.dropna(subset=feature_and_tag).reset_index()
-
-        x = scale(df[feature_cols])
-        y = df[tag]
-
-        clustering = KMeans(n_clusters=len(y.unique()), random_state=random)
+        clustering = KMeans(n_clusters=len(y.unique()), random_state=random_state)
         clustering.fit(x)
 
-        final_df = df
-        final_df["predict"] = clustering.labels_
-        return final_df
+        df_clustering = data_frame.copy()
+        df_clustering[target] = clustering.labels_
+        return df_clustering
 
     def apply_last_update(self):
         self._data_frame_original = self._data_frame_last_update.copy()
