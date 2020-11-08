@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 import dash
 import dash_html_components as html
@@ -13,7 +15,7 @@ from colour import Color
 
 class DataVisualizer(object):
 
-    def __init__(self, data_handler, app):
+    def __init__(self, data_handler, app, mapbox_token, mapbox_style):
         self._data_handler = data_handler
         self._app = app
 
@@ -42,18 +44,24 @@ class DataVisualizer(object):
             "screen3": {"light": "#FDDFD5", "dark": "#3A0000"}
         }
 
-        self._mapbox_access_token = "pk.eyJ1IjoibGVvMTk5MDA3MjMiLCJhIjoiY2toMTM0NGVqMGFzdzJycnh0M3RpNnd6cSJ9.HI8SD_-Mbl2Cwa2c-W9PNA"
-        self._mapbox_style = "mapbox://styles/leo19900723/ckh13dngl0b6s19nw1vm9h9bq"
+        self._mapbox_token = mapbox_token
+        self._mapbox_style = mapbox_style
 
         self.set_layout()
 
     @classmethod
     def construct_from_csv(cls, path):
         external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
+        mapbox_info_file_path = "assets/mapbox_info.json"
+
+        with open(mapbox_info_file_path) as mapbox_info_file:
+            mapbox_info_dict = json.load(mapbox_info_file)
 
         return DataVisualizer(
             data_handler=DataHandler.construct_from_csv(path),
-            app=dash.Dash(__name__, external_stylesheets=external_stylesheets)
+            app=dash.Dash(__name__, external_stylesheets=external_stylesheets),
+            mapbox_token=mapbox_info_dict["mapbox_token"],
+            mapbox_style=mapbox_info_dict["mapbox_style"]["UCDavis_289H_Project2_Dark"]
         )
 
     def set_layout(self):
@@ -403,7 +411,7 @@ class DataVisualizer(object):
             fig.update_layout(autosize=True,
                               showlegend=False,
                               margin=go.layout.Margin(l=0, r=0, t=0, b=0),
-                              mapbox=dict(accesstoken=self._mapbox_access_token, style=self._mapbox_style))
+                              mapbox=dict(accesstoken=self._mapbox_token, style=self._mapbox_style))
 
             return fig
 

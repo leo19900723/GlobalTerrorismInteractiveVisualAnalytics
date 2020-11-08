@@ -13,8 +13,7 @@ class DataHandler(object):
         self._data_frame_last_update = None
 
         self._txt_cols = ["attacktype1_txt", "weaptype1_txt", "targtype1_txt", "gname"]
-        self._numeric_cols = ["nperps", "nperpcap", "nkill", "nkillus", "nkillter", "nwound", "nwoundus", "nwoundte",
-                              "propvalue", "nhostkid", "nhostkidus"]
+        self._numeric_cols = ["nperps", "nperpcap", "nkill", "nkillus", "nkillter", "nwound", "nwoundus", "nwoundte"]
 
         self.preprocess_data()
 
