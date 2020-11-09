@@ -170,6 +170,10 @@ class DataVisualizer(object):
                                             html.H6(children="Z-Axis for 3D"),
                                             dcc.Dropdown(id="ml_axis_picker_z", placeholder="Select Z-Axis")
                                         ])
+                                    ]),
+
+                                    html.Div(id="pca_var_result_frame", children=[
+                                        html.H5(id="pca_var_result", children="Processing...")
                                     ])
                                 ]
                             )
@@ -328,6 +332,7 @@ class DataVisualizer(object):
             dash.dependencies.Output("clustering_2d_matrix", "figure"),
             dash.dependencies.Output("pca_3d", "figure"),
             dash.dependencies.Output("clustering_3d", "figure"),
+            dash.dependencies.Output("pca_var_result", "children"),
             [dash.dependencies.Input("ml_target_picker", "value"),
              dash.dependencies.Input("ml_feature_cols_picker", "value"),
              dash.dependencies.Input("ml_num_of_pc_setup", "value"),
@@ -521,7 +526,7 @@ class DataVisualizer(object):
     def _update_pca_clustering(self, selected_target, selected_cols, num_of_pc, random_state, axis_x, axis_y, axis_z):
         all_cols = selected_cols + [selected_target]
         dfs = {}
-        figs = []
+        return_list = []
 
         # Wait for input fields initialization.
         if not (selected_target and selected_cols):
@@ -551,7 +556,7 @@ class DataVisualizer(object):
 
         # Create Matrix figures
         for key in dfs.keys():
-            figs.append(
+            return_list.append(
                 px.scatter_matrix(
                     dfs[key],
                     color=dfs[key][selected_target],
@@ -561,19 +566,19 @@ class DataVisualizer(object):
                 )
             )
 
-            figs[-1].update_traces(diagonal_visible=False, marker_coloraxis=None)
+            return_list[-1].update_traces(diagonal_visible=False, marker_coloraxis=None)
 
-            figs[-1].update_layout(autosize=True,
-                                   showlegend=False,
-                                   title=key,
-                                   margin=go.layout.Margin(l=0, r=0, t=50, b=0),
-                                   font=dict(color=self._default_colors["screen3"]["light"]),
-                                   paper_bgcolor="rgba(0,0,0,0)",
-                                   plot_bgcolor="rgba(0,0,0,0)")
+            return_list[-1].update_layout(autosize=True,
+                                          showlegend=False,
+                                          title=key,
+                                          margin=go.layout.Margin(l=0, r=0, t=50, b=0),
+                                          font=dict(color=self._default_colors["screen3"]["light"]),
+                                          paper_bgcolor="rgba(0,0,0,0)",
+                                          plot_bgcolor="rgba(0,0,0,0)")
 
         # Create 3D figures
         for key in dfs.keys():
-            figs.append(
+            return_list.append(
                 px.scatter_3d(data_frame=dfs[key],
                               x=axis_x,
                               y=axis_y,
@@ -581,21 +586,23 @@ class DataVisualizer(object):
                               color=dfs[key][selected_target],
                               template="simple_white"))
 
-            figs[-1].update_traces(marker_coloraxis=None)
+            return_list[-1].update_traces(marker_coloraxis=None)
 
-            figs[-1].update_layout(autosize=True,
-                                   title=key,
-                                   showlegend=False,
-                                   margin=go.layout.Margin(l=0, r=0, t=50, b=0),
-                                   font=dict(color=self._default_colors["screen3"]["light"]),
-                                   paper_bgcolor="rgba(0,0,0,0)",
-                                   plot_bgcolor="rgba(0,0,0,0)",
-                                   scene=dict(
-                                       xaxis=dict(showbackground=False),
-                                       yaxis=dict(showbackground=False),
-                                       zaxis=dict(showbackground=False)))
+            return_list[-1].update_layout(autosize=True,
+                                          title=key,
+                                          showlegend=False,
+                                          margin=go.layout.Margin(l=0, r=0, t=50, b=0),
+                                          font=dict(color=self._default_colors["screen3"]["light"]),
+                                          paper_bgcolor="rgba(0,0,0,0)",
+                                          plot_bgcolor="rgba(0,0,0,0)",
+                                          scene=dict(
+                                              xaxis=dict(showbackground=False),
+                                              yaxis=dict(showbackground=False),
+                                              zaxis=dict(showbackground=False)))
 
-        return tuple(figs)
+        return_list.append(f"Total Explained Variance: {total_var * 100:.2f}%")
+
+        return tuple(return_list)
 
     def _update_heatmap_correlation_selected_cols(self, selected_calc_col):
 

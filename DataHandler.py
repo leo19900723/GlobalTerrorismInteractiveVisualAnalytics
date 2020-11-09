@@ -102,7 +102,6 @@ class DataHandler(object):
 def unit_test():
     path = "dataset/globalterrorismdb_0718dist.csv"
     handler = DataHandler.construct_from_csv(path=path)
-    print(DataHandler.trim_categories(handler.get_data_frame_original, "gname"))
 
 
 if __name__ == '__main__':
