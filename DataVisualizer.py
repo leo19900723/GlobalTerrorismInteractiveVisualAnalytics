@@ -48,6 +48,7 @@ class DataVisualizer(object):
         self._mapbox_style = mapbox_style
 
         self.set_layout()
+        self.callback()
 
     @classmethod
     def construct_from_csv(cls, path):
@@ -267,32 +268,23 @@ class DataVisualizer(object):
             )
         ])
 
-        @self._app.callback(
+    def callback(self):
+
+        # Callback for the control panel
+        self._app.callback(
             dash.dependencies.Output("categories_picker", "options"),
             dash.dependencies.Output("categories_picker", "value"),
             [dash.dependencies.Input("column_picker", "value")]
-        )
-        def update_categories_picker(selected_col):
-            df = self._data_handler.get_data_frame_original
+        )(self._update_categories_picker)
 
-            all_cat = [{"label": col, "value": col} for col in
-                       self._data_handler.get_data_frame_original[selected_col].unique()]
-            reserved_cat = DataHandler.get_top_categories(data_frame=df, target_cols=selected_col,
-                                                          number_of_reserved=self._default_number_of_reserved)
-            return all_cat, reserved_cat
-
-        @self._app.callback(
+        self._app.callback(
             dash.dependencies.Output("specific_year_picker", "value"),
             dash.dependencies.Output("specific_year_picker", "options"),
             [dash.dependencies.Input("year_slider", "value"),
              dash.dependencies.Input("bar_year_attack_type_all_fig", "selectedData")]
-        )
-        def update_specific_year_picker(year_range, selected_bar):
-            value = selected_bar["points"][0]["x"] if selected_bar and selected_bar["points"] else None
-            options = [{"label": year, "value": year} for year in range(year_range[0], year_range[1] + 1)]
-            return value, options
+        )(DataVisualizer._update_specific_year_picker)
 
-        @self._app.callback(
+        self._app.callback(
             dash.dependencies.Output("ml_axis_picker_x", "options"),
             dash.dependencies.Output("ml_axis_picker_x", "value"),
             dash.dependencies.Output("ml_axis_picker_y", "options"),
@@ -300,186 +292,38 @@ class DataVisualizer(object):
             dash.dependencies.Output("ml_axis_picker_z", "options"),
             dash.dependencies.Output("ml_axis_picker_z", "value"),
             [dash.dependencies.Input("ml_num_of_pc_setup", "value")]
-        )
-        def update_ml_axis_picker(num_of_pc):
-            options = [{"label": "P" + str(i + 1), "value": "P" + str(i + 1)} for i in range(num_of_pc)]
-            return_settings = []
+        )(DataVisualizer._update_ml_axis_picker)
 
-            for axis_index in range(3):
-                return_settings.append(options)
-                return_settings.append(options[axis_index]["value"])
-
-            return tuple(return_settings)
-
-        @self._app.callback(
+        # Callback for graphics
+        self._app.callback(
             dash.dependencies.Output("bar_year_attack_type_all_fig", "figure"),
-            [dash.dependencies.Input("year_slider", "value"),
-             dash.dependencies.Input("column_picker", "value")])
-        def update_bar_year_attack_type_all_fig(year_range, selected_col):
-            df = self._get_backend_data_frame_for_viewing(year_range=year_range, selected_col=selected_col)
-            df = df.groupby(["iyear"]).size().reset_index(name="frequency")
+            [dash.dependencies.Input("year_slider", "value")]
+        )(self._update_bar_year_attack_type_all_fig)
 
-            fig = px.bar(data_frame=df, x="iyear", y="frequency", text="frequency")
-
-            fig.update_traces(opacity=1,
-                              textposition="outside",
-                              marker=dict(
-                                  color=df["iyear"],
-                                  colorscale=DataVisualizer._get_color_scale(len(df["iyear"].unique()),
-                                                                             self._default_colors["screen1"]["light"],
-                                                                             self._default_colors["screen1"]["dark"])))
-
-            fig.update_layout(autosize=True,
-                              showlegend=False,
-                              dragmode="select",
-                              hovermode="x",
-                              margin=go.layout.Margin(l=20, r=20, t=20, b=20),
-                              paper_bgcolor="rgba(0,0,0,0)",
-                              plot_bgcolor="rgba(0,0,0,0)",
-                              font=dict(color=self._default_colors["screen1"]["light"]),
-                              xaxis=dict(
-                                  title=None,
-                                  showgrid=False),
-                              yaxis=dict(
-                                  title=None,
-                                  showticklabels=False,
-                                  showgrid=False))
-
-            return fig
-
-        @self._app.callback(
+        self._app.callback(
             dash.dependencies.Output("heatmap_weekday_month_year_attack_freq_fig", "figure"),
             [dash.dependencies.Input("year_slider", "value"),
-             dash.dependencies.Input("specific_year_picker", "value"),
-             dash.dependencies.Input("column_picker", "value")])
-        def update_heatmap_weekday_month_year_attack_freq_fig(year_range, specified_year, selected_col):
+             dash.dependencies.Input("specific_year_picker", "value")]
+        )(self._update_heatmap_weekday_month_year_attack_freq_fig)
 
-            # Wait for input fields initialization.
-            if not (selected_col and (year_range or specified_year)):
-                return self._default_plain_fig
-
-            year_range = [specified_year, specified_year] if specified_year else year_range
-            df = self._get_backend_data_frame_for_viewing(year_range=year_range, selected_col=selected_col)
-
-            month_order = dict(zip(range(len(calendar.month_name)), list(calendar.month_abbr)))
-            day_order = dict(zip(range(len(calendar.day_name)), list(calendar.day_abbr)))
-
-            df = df[(df[["iyear", "imonth", "iday"]] != 0).all(axis=1)][["iyear", "imonth", "iday"]]
-            df = df.rename(columns={"iyear": "year", "imonth": "month", "iday": "day"})
-            df["weekday"] = pd.to_datetime(df[["year", "month", "day"]]).dt.dayofweek
-            df = df.groupby(["weekday", "month"]).size()
-            df = df.reset_index(name="frequency")
-            df = df.pivot(index="weekday", columns="month", values="frequency")
-            df = df.rename(index=day_order).rename(columns=month_order)
-
-            annotations = []
-            for row_index, row in enumerate(df.values):
-                for col_index, cell in enumerate(row):
-                    annotations.append(dict(
-                        showarrow=False,
-                        text="<b>" + str(df.values[row_index][col_index]) + "<b>",
-                        xref="x",
-                        yref="y",
-                        x=df.columns[col_index],
-                        y=df.index[row_index]))
-
-            fig = go.Figure(
-                data=go.Heatmap(
-                    z=df.values,
-                    x=df.columns,
-                    y=df.index,
-                    colorscale=[[0, self._default_colors["screen1"]["dark"]],
-                                [1, self._default_colors["screen1"]["light"]]]))
-
-            fig.update_layout(autosize=True,
-                              showlegend=False,
-                              margin=go.layout.Margin(l=20, r=20, t=20, b=20),
-                              paper_bgcolor="rgba(0,0,0,0)",
-                              plot_bgcolor="rgba(0,0,0,0)",
-                              font=dict(color=self._default_colors["screen1"]["light"]),
-                              annotations=annotations)
-
-            return fig
-
-        @self._app.callback(
+        self._app.callback(
             dash.dependencies.Output("map_year_attack_type_all_or_specified_fig", "figure"),
             [dash.dependencies.Input("year_slider", "value"),
              dash.dependencies.Input("specific_year_picker", "value"),
              dash.dependencies.Input("column_picker", "value"),
-             dash.dependencies.Input("categories_picker", "value")])
-        def update_map_year_attack_type_all_or_specified_fig(year_range, specified_year, selected_col, selected_cat):
+             dash.dependencies.Input("categories_picker", "value")]
+        )(self._update_map_year_attack_type_all_or_specified_fig)
 
-            # Wait for input fields initialization.
-            if not (selected_col and selected_cat and (year_range or specified_year)):
-                return self._default_plain_fig
-
-            year_range = [specified_year, specified_year] if specified_year else year_range
-            df = self._get_backend_data_frame_for_viewing(year_range=year_range, selected_col=selected_col,
-                                                          selected_cat=selected_cat)
-
-            df_m = df[[selected_col, "latitude", "longitude", "nkill", "nwound"]].groupby(
-                [selected_col, "latitude", "longitude"]).sum()
-            df_m["frequency"] = df.groupby([selected_col, "latitude", "longitude"]).size()
-            df = df_m.reset_index()
-
-            fig = px.scatter_mapbox(data_frame=df, lat="latitude", lon="longitude", color=selected_col,
-                                    size="frequency",
-                                    zoom=2.2, custom_data=[selected_col, "nkill", "nwound"])
-
-            fig.update_layout(autosize=True,
-                              showlegend=False,
-                              margin=go.layout.Margin(l=0, r=0, t=0, b=0),
-                              mapbox=dict(accesstoken=self._mapbox_token, style=self._mapbox_style))
-
-            return fig
-
-        @self._app.callback(
+        self._app.callback(
             dash.dependencies.Output("pies_kill_wound_nationality_selected_points", "figure"),
             [dash.dependencies.Input("map_year_attack_type_all_or_specified_fig", "selectedData"),
              dash.dependencies.Input("year_slider", "value"),
              dash.dependencies.Input("specific_year_picker", "value"),
              dash.dependencies.Input("column_picker", "value"),
-             dash.dependencies.Input("categories_picker", "value")])
-        def update_pies_kill_wound_nationality_selected_points(selected_points, year_range, specified_year,
-                                                               selected_col, selected_cat):
+             dash.dependencies.Input("categories_picker", "value")]
+        )(self._update_pies_kill_wound_nationality_selected_points)
 
-            # Wait for input fields initialization.
-            if not (selected_col and selected_cat and (year_range or specified_year)):
-                return self._default_plain_fig
-
-            df_col_list = [selected_col, "nkill", "nwound", "nkill+wound"]
-
-            if selected_points and selected_points["points"]:
-                df = pd.DataFrame([point["customdata"] for point in selected_points["points"]],
-                                  columns=df_col_list[:-1])
-            else:
-                year_range = [specified_year, specified_year] if specified_year else year_range
-                df = self._get_backend_data_frame_for_viewing(year_range=year_range, selected_col=selected_col,
-                                                              selected_cat=selected_cat)
-
-            df["nkill+wound"] = df["nkill"] + df["nwound"]
-            df = df[df_col_list].groupby(selected_col).sum().reset_index()
-
-            fig = make_subplots(rows=len(df_col_list[1:]), cols=1,
-                                specs=[[{"type": "domain"}] for _ in range(len(df_col_list[1:]))])
-            for index, pie_col in enumerate(df_col_list[1:]):
-                fig.add_trace(go.Pie(labels=df[selected_col].unique(), values=df[pie_col], name=pie_col), index + 1, 1)
-
-            fig.update_traces(hole=.4,
-                              hoverinfo="label+percent+name",
-                              marker=dict(
-                                  colors=DataVisualizer._get_color_scale(len(selected_cat),
-                                                                         self._default_colors["screen2"]["light"],
-                                                                         self._default_colors["screen2"]["dark"])))
-
-            fig.update_layout(autosize=True,
-                              showlegend=False,
-                              font=dict(color=self._default_colors["screen2"]["light"]),
-                              paper_bgcolor="rgba(0,0,0,0)",
-                              plot_bgcolor="rgba(0,0,0,0)")
-            return fig
-
-        @self._app.callback(
+        self._app.callback(
             dash.dependencies.Output("pca_2d_matrix", "figure"),
             dash.dependencies.Output("clustering_2d_matrix", "figure"),
             dash.dependencies.Output("pca_3d", "figure"),
@@ -490,121 +334,299 @@ class DataVisualizer(object):
              dash.dependencies.Input("ml_random_state_setup", "value"),
              dash.dependencies.Input("ml_axis_picker_x", "value"),
              dash.dependencies.Input("ml_axis_picker_y", "value"),
-             dash.dependencies.Input("ml_axis_picker_z", "value")])
-        def update_pca_clustering(selected_target, selected_cols, num_of_pc, random_state, axis_x, axis_y, axis_z):
-            all_cols = selected_cols + [selected_target]
-            dfs = {}
-            figs = []
+             dash.dependencies.Input("ml_axis_picker_z", "value")]
+        )(self._update_pca_clustering)
 
-            # Wait for input fields initialization.
-            if not (selected_target and selected_cols):
-                return self._default_plain_fig, self._default_plain_fig
-
-            # Check whether there existed user-defined-target-col
-            selected_target = selected_target if selected_target else self._default_pca_target_pick
-            self._default_pca_target_pick = selected_target
-
-            # Compute PCA
-            dfs["PCA"] = self._data_handler.get_data_frame_original
-            dfs["PCA"] = dfs["PCA"][all_cols]
-            dfs["PCA"] = dfs["PCA"].dropna(subset=all_cols).reset_index()
-
-            dfs["PCA"], total_var = DataHandler.get_pca(data_frame=dfs["PCA"], target=selected_target,
-                                                        num_of_pc=num_of_pc)
-
-            # Compute Clustering by using df["PCA"]
-            dfs["K-Means Clustering"] = DataHandler.get_clustering(data_frame=dfs["PCA"], target=selected_target,
-                                                                   random_state=random_state)
-
-            # Create Matrix figures - Meta
-            computed_feature_cols = ["P" + str(i + 1) for i in range(num_of_pc)]
-
-            labels = dict(zip(map(str, range(num_of_pc)), computed_feature_cols))
-            labels["color"] = selected_target
-
-            # Create Matrix figures
-            for key in dfs.keys():
-                figs.append(
-                    px.scatter_matrix(
-                        dfs[key],
-                        color=dfs[key][selected_target],
-                        dimensions=computed_feature_cols,
-                        labels=labels,
-                        template="simple_white"
-                    )
-                )
-
-                figs[-1].update_traces(diagonal_visible=False, marker_coloraxis=None)
-
-                figs[-1].update_layout(autosize=True,
-                                       showlegend=False,
-                                       title=key,
-                                       margin=go.layout.Margin(l=0, r=0, t=50, b=0),
-                                       font=dict(color=self._default_colors["screen3"]["light"]),
-                                       paper_bgcolor="rgba(0,0,0,0)",
-                                       plot_bgcolor="rgba(0,0,0,0)")
-
-                figs[-1].update_xaxes(showgrid=False, zeroline=False)
-                figs[-1].update_yaxes(showgrid=False, zeroline=False)
-
-            # Create 3D figures
-            for key in dfs.keys():
-                figs.append(
-                    px.scatter_3d(data_frame=dfs[key],
-                                  x=axis_x,
-                                  y=axis_y,
-                                  z=axis_z,
-                                  color=dfs[key][selected_target],
-                                  template="simple_white"))
-
-                figs[-1].update_traces(marker_coloraxis=None)
-
-                figs[-1].update_layout(autosize=True,
-                                       title=key,
-                                       showlegend=False,
-                                       margin=go.layout.Margin(l=0, r=0, t=50, b=0),
-                                       font=dict(color=self._default_colors["screen3"]["light"]),
-                                       paper_bgcolor="rgba(0,0,0,0)",
-                                       plot_bgcolor="rgba(0,0,0,0)",
-                                       scene=dict(
-                                           xaxis=dict(showbackground=False),
-                                           yaxis=dict(showbackground=False),
-                                           zaxis=dict(showbackground=False)))
-
-            return tuple(figs)
-
-        @self._app.callback(
+        self._app.callback(
             dash.dependencies.Output("heatmap_correlation_selected_cols", "figure"),
-            [dash.dependencies.Input("ml_feature_cols_picker", "value")])
-        def update_heatmap_correlation_selected_cols(selected_calc_col):
+            [dash.dependencies.Input("ml_feature_cols_picker", "value")]
+        )(self._update_heatmap_correlation_selected_cols)
 
-            # Wait for input fields initialization.
-            if not selected_calc_col:
-                return self._default_plain_fig
+    def _update_categories_picker(self, selected_col):
 
-            df = self._data_handler.get_data_frame_original[selected_calc_col].corr()
+        if selected_col:
+            df = self._data_handler.get_data_frame_original
 
-            fig = go.Figure(data=go.Heatmap(
+            all_cat = [{"label": col, "value": col} for col in
+                       self._data_handler.get_data_frame_original[selected_col].unique()]
+            reserved_cat = DataHandler.get_top_categories(data_frame=df, target_cols=selected_col,
+                                                          number_of_reserved=self._default_number_of_reserved)
+            return all_cat, reserved_cat
+        else:
+            return [], []
+
+    @staticmethod
+    def _update_specific_year_picker(year_range, selected_bar):
+        value = selected_bar["points"][0]["x"] if selected_bar and selected_bar["points"] else None
+        options = [{"label": year, "value": year} for year in range(year_range[0], year_range[1] + 1)]
+        return value, options
+
+    @staticmethod
+    def _update_ml_axis_picker(num_of_pc):
+        options = [{"label": "P" + str(i + 1), "value": "P" + str(i + 1)} for i in range(num_of_pc)]
+        return_settings = []
+
+        for axis_index in range(3):
+            return_settings.append(options)
+            return_settings.append(options[axis_index]["value"])
+
+        return tuple(return_settings)
+
+    def _update_bar_year_attack_type_all_fig(self, year_range):
+        df = self._get_backend_data_frame_for_viewing(year_range=year_range)
+        df = df.groupby(["iyear"]).size().reset_index(name="frequency")
+
+        fig = px.bar(data_frame=df, x="iyear", y="frequency", text="frequency")
+
+        fig.update_traces(opacity=1,
+                          textposition="outside",
+                          marker=dict(
+                              color=df["iyear"],
+                              colorscale=DataVisualizer._get_color_scale(len(df["iyear"].unique()),
+                                                                         self._default_colors["screen1"]["light"],
+                                                                         self._default_colors["screen1"]["dark"])))
+
+        fig.update_layout(autosize=True,
+                          showlegend=False,
+                          dragmode="select",
+                          hovermode="x",
+                          margin=go.layout.Margin(l=20, r=20, t=20, b=20),
+                          paper_bgcolor="rgba(0,0,0,0)",
+                          plot_bgcolor="rgba(0,0,0,0)",
+                          font=dict(color=self._default_colors["screen1"]["light"]),
+                          xaxis=dict(
+                              title=None,
+                              showgrid=False),
+                          yaxis=dict(
+                              title=None,
+                              showticklabels=False,
+                              showgrid=False))
+
+        return fig
+
+    def _update_heatmap_weekday_month_year_attack_freq_fig(self, year_range, specified_year):
+
+        # Wait for input fields initialization.
+        if not (year_range or specified_year):
+            return self._default_plain_fig
+
+        year_range = [specified_year, specified_year] if specified_year else year_range
+        df = self._get_backend_data_frame_for_viewing(year_range=year_range)
+
+        month_order = dict(zip(range(len(calendar.month_name)), list(calendar.month_abbr)))
+        day_order = dict(zip(range(len(calendar.day_name)), list(calendar.day_abbr)))
+
+        df = df[(df[["iyear", "imonth", "iday"]] != 0).all(axis=1)][["iyear", "imonth", "iday"]]
+        df = df.rename(columns={"iyear": "year", "imonth": "month", "iday": "day"})
+        df["weekday"] = pd.to_datetime(df[["year", "month", "day"]]).dt.dayofweek
+        df = df.groupby(["weekday", "month"]).size()
+        df = df.reset_index(name="frequency")
+        df = df.pivot(index="weekday", columns="month", values="frequency")
+        df = df.rename(index=day_order).rename(columns=month_order)
+
+        annotations = []
+        for row_index, row in enumerate(df.values):
+            for col_index, cell in enumerate(row):
+                annotations.append(dict(
+                    showarrow=False,
+                    text="<b>" + str(df.values[row_index][col_index]) + "<b>",
+                    xref="x",
+                    yref="y",
+                    x=df.columns[col_index],
+                    y=df.index[row_index]))
+
+        fig = go.Figure(
+            data=go.Heatmap(
                 z=df.values,
                 x=df.columns,
                 y=df.index,
-                colorscale=[[0, self._default_colors["screen3"]["dark"]],
-                            [1, self._default_colors["screen3"]["light"]]]))
+                colorscale=[[0, self._default_colors["screen1"]["dark"]],
+                            [1, self._default_colors["screen1"]["light"]]]))
 
-            fig.update_layout(autosize=True,
-                              showlegend=False,
-                              title="Correlation Matrix for Selected Columns",
-                              margin=go.layout.Margin(l=0, r=0, t=50, b=0),
-                              paper_bgcolor="rgba(0,0,0,0)",
-                              plot_bgcolor="rgba(0,0,0,0)",
-                              font=dict(color=self._default_colors["screen3"]["light"]))
+        fig.update_layout(autosize=True,
+                          showlegend=False,
+                          margin=go.layout.Margin(l=20, r=20, t=20, b=20),
+                          paper_bgcolor="rgba(0,0,0,0)",
+                          plot_bgcolor="rgba(0,0,0,0)",
+                          font=dict(color=self._default_colors["screen1"]["light"]),
+                          annotations=annotations)
 
-            return fig
+        return fig
 
-    def _get_backend_data_frame_for_viewing(self, year_range, selected_col, selected_cat=None):
+    def _update_map_year_attack_type_all_or_specified_fig(self, year_range, specified_year, selected_col, selected_cat):
+
+        # Wait for input fields initialization.
+        if not (selected_col and selected_cat and (year_range or specified_year)):
+            return self._default_plain_fig
+
+        year_range = [specified_year, specified_year] if specified_year else year_range
+        df = self._get_backend_data_frame_for_viewing(year_range=year_range, selected_col=selected_col,
+                                                      selected_cat=selected_cat)
+
+        df_m = df[[selected_col, "latitude", "longitude", "nkill", "nwound"]].groupby(
+            [selected_col, "latitude", "longitude"]).sum()
+        df_m["frequency"] = df.groupby([selected_col, "latitude", "longitude"]).size()
+        df = df_m.reset_index()
+
+        fig = px.scatter_mapbox(data_frame=df, lat="latitude", lon="longitude", color=selected_col,
+                                size="frequency",
+                                zoom=2.2, custom_data=[selected_col, "nkill", "nwound"])
+
+        fig.update_layout(autosize=True,
+                          showlegend=False,
+                          margin=go.layout.Margin(l=0, r=0, t=0, b=0),
+                          mapbox=dict(accesstoken=self._mapbox_token, style=self._mapbox_style))
+
+        return fig
+
+    def _update_pies_kill_wound_nationality_selected_points(self, selected_points, year_range, specified_year,
+                                                            selected_col, selected_cat):
+
+        # Wait for input fields initialization.
+        if not (selected_col and selected_cat and (year_range or specified_year)):
+            return self._default_plain_fig
+
+        df_col_list = [selected_col, "nkill", "nwound", "nkill+wound"]
+
+        if selected_points and selected_points["points"]:
+            df = pd.DataFrame([point["customdata"] for point in selected_points["points"]],
+                              columns=df_col_list[:-1])
+        else:
+            year_range = [specified_year, specified_year] if specified_year else year_range
+            df = self._get_backend_data_frame_for_viewing(year_range=year_range, selected_col=selected_col,
+                                                          selected_cat=selected_cat)
+
+        df["nkill+wound"] = df["nkill"] + df["nwound"]
+        df = df[df_col_list].groupby(selected_col).sum().reset_index()
+
+        fig = make_subplots(rows=len(df_col_list[1:]), cols=1,
+                            specs=[[{"type": "domain"}] for _ in range(len(df_col_list[1:]))])
+        for index, pie_col in enumerate(df_col_list[1:]):
+            fig.add_trace(go.Pie(labels=df[selected_col].unique(), values=df[pie_col], name=pie_col), index + 1, 1)
+
+        fig.update_traces(hole=.4,
+                          hoverinfo="label+percent+name",
+                          marker=dict(
+                              colors=DataVisualizer._get_color_scale(len(selected_cat),
+                                                                     self._default_colors["screen2"]["light"],
+                                                                     self._default_colors["screen2"]["dark"])))
+
+        fig.update_layout(autosize=True,
+                          showlegend=False,
+                          font=dict(color=self._default_colors["screen2"]["light"]),
+                          paper_bgcolor="rgba(0,0,0,0)",
+                          plot_bgcolor="rgba(0,0,0,0)")
+        return fig
+
+    def _update_pca_clustering(self, selected_target, selected_cols, num_of_pc, random_state, axis_x, axis_y, axis_z):
+        all_cols = selected_cols + [selected_target]
+        dfs = {}
+        figs = []
+
+        # Wait for input fields initialization.
+        if not (selected_target and selected_cols):
+            return self._default_plain_fig, self._default_plain_fig
+
+        # Check whether there existed user-defined-target-col
+        selected_target = selected_target if selected_target else self._default_pca_target_pick
+        self._default_pca_target_pick = selected_target
+
+        # Compute PCA
+        dfs["PCA"] = self._data_handler.get_data_frame_original
+        dfs["PCA"] = dfs["PCA"][all_cols]
+        dfs["PCA"] = dfs["PCA"].dropna(subset=all_cols).reset_index()
+
+        dfs["PCA"], total_var = DataHandler.get_pca(data_frame=dfs["PCA"], target=selected_target,
+                                                    num_of_pc=num_of_pc)
+
+        # Compute Clustering by using df["PCA"]
+        dfs["K-Means Clustering"] = DataHandler.get_clustering(data_frame=dfs["PCA"], target=selected_target,
+                                                               random_state=random_state)
+
+        # Create Matrix figures - Meta
+        computed_feature_cols = ["P" + str(i + 1) for i in range(num_of_pc)]
+
+        labels = dict(zip(map(str, range(num_of_pc)), computed_feature_cols))
+        labels["color"] = selected_target
+
+        # Create Matrix figures
+        for key in dfs.keys():
+            figs.append(
+                px.scatter_matrix(
+                    dfs[key],
+                    color=dfs[key][selected_target],
+                    dimensions=computed_feature_cols,
+                    labels=labels,
+                    template="simple_white"
+                )
+            )
+
+            figs[-1].update_traces(diagonal_visible=False, marker_coloraxis=None)
+
+            figs[-1].update_layout(autosize=True,
+                                   showlegend=False,
+                                   title=key,
+                                   margin=go.layout.Margin(l=0, r=0, t=50, b=0),
+                                   font=dict(color=self._default_colors["screen3"]["light"]),
+                                   paper_bgcolor="rgba(0,0,0,0)",
+                                   plot_bgcolor="rgba(0,0,0,0)")
+
+        # Create 3D figures
+        for key in dfs.keys():
+            figs.append(
+                px.scatter_3d(data_frame=dfs[key],
+                              x=axis_x,
+                              y=axis_y,
+                              z=axis_z,
+                              color=dfs[key][selected_target],
+                              template="simple_white"))
+
+            figs[-1].update_traces(marker_coloraxis=None)
+
+            figs[-1].update_layout(autosize=True,
+                                   title=key,
+                                   showlegend=False,
+                                   margin=go.layout.Margin(l=0, r=0, t=50, b=0),
+                                   font=dict(color=self._default_colors["screen3"]["light"]),
+                                   paper_bgcolor="rgba(0,0,0,0)",
+                                   plot_bgcolor="rgba(0,0,0,0)",
+                                   scene=dict(
+                                       xaxis=dict(showbackground=False),
+                                       yaxis=dict(showbackground=False),
+                                       zaxis=dict(showbackground=False)))
+
+        return tuple(figs)
+
+    def _update_heatmap_correlation_selected_cols(self, selected_calc_col):
+
+        # Wait for input fields initialization.
+        if not selected_calc_col:
+            return self._default_plain_fig
+
+        df = self._data_handler.get_data_frame_original[selected_calc_col].corr()
+
+        fig = go.Figure(data=go.Heatmap(
+            z=df.values,
+            x=df.columns,
+            y=df.index,
+            colorscale=[[0, self._default_colors["screen3"]["dark"]],
+                        [1, self._default_colors["screen3"]["light"]]]))
+
+        fig.update_layout(autosize=True,
+                          showlegend=False,
+                          title="Correlation Matrix for Selected Columns",
+                          margin=go.layout.Margin(l=0, r=0, t=50, b=0),
+                          paper_bgcolor="rgba(0,0,0,0)",
+                          plot_bgcolor="rgba(0,0,0,0)",
+                          font=dict(color=self._default_colors["screen3"]["light"]))
+
+        return fig
+
+    def _get_backend_data_frame_for_viewing(self, year_range, selected_col=None, selected_cat=None):
         df = self._data_handler.get_data_frame_original
 
-        df = DataHandler.trim_categories(data_frame=df, target_cols=selected_col, designated_list=selected_cat)
+        if selected_col:
+            df = DataHandler.trim_categories(data_frame=df, target_cols=selected_col, designated_list=selected_cat)
         df = df[df["iyear"].between(year_range[0], year_range[1], inclusive=True)]
 
         return df
