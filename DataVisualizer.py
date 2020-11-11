@@ -44,6 +44,10 @@ class DataVisualizer(object):
             "screen3": {"light": "#FDDFD5", "dark": "#3A0000"}
         }
 
+        self._pca_clustering_df = {}
+        self._pca_clustering_target = None
+        self._pca_calc_trial_num = 1
+
         self._mapbox_token = mapbox_token
         self._mapbox_style = mapbox_style
 
@@ -107,6 +111,7 @@ class DataVisualizer(object):
                                         options=[{"label": "View: " + col, "value": col} for col in
                                                  self._data_handler.get_txt_columns],
                                         value=self._default_column_pick,
+                                        clearable=False,
                                         placeholder="Select a column in the dataset"
                                     ),
 
@@ -123,6 +128,7 @@ class DataVisualizer(object):
                                         id="ml_target_picker",
                                         options=[{"label": col, "value": col} for col in
                                                  self._data_handler.get_data_frame_original.columns],
+                                        clearable=False,
                                         value=self._default_pca_target_pick
                                     ),
 
@@ -141,6 +147,7 @@ class DataVisualizer(object):
                                             dcc.Input(
                                                 id="ml_num_of_pc_setup",
                                                 type="number",
+                                                min=3,
                                                 value=6
                                             )
                                         ]),
@@ -155,25 +162,31 @@ class DataVisualizer(object):
                                         ]),
                                     ]),
 
+                                    html.Button(id="ml_calc_button_pca_var",
+                                                children=[html.Span("Calculate")],
+                                                n_clicks=self._pca_calc_trial_num),
+
                                     html.Div(id="ml_axis_picker", children=[
                                         html.Div(id="ml_axis_picker_x_frame", children=[
                                             html.H6(children="X-Axis for 3D"),
-                                            dcc.Dropdown(id="ml_axis_picker_x", placeholder="Select X-Axis")
+                                            dcc.Dropdown(id="ml_axis_picker_x",
+                                                         clearable=False,
+                                                         placeholder="Select X-Axis")
                                         ]),
 
                                         html.Div(id="ml_axis_picker_y_frame", children=[
                                             html.H6(children="Y-Axis for 3D"),
-                                            dcc.Dropdown(id="ml_axis_picker_y", placeholder="Select Y-Axis")
+                                            dcc.Dropdown(id="ml_axis_picker_y",
+                                                         clearable=False,
+                                                         placeholder="Select Y-Axis")
                                         ]),
 
                                         html.Div(id="ml_axis_picker_z_frame", children=[
                                             html.H6(children="Z-Axis for 3D"),
-                                            dcc.Dropdown(id="ml_axis_picker_z", placeholder="Select Z-Axis")
+                                            dcc.Dropdown(id="ml_axis_picker_z",
+                                                         clearable=False,
+                                                         placeholder="Select Z-Axis")
                                         ])
-                                    ]),
-
-                                    html.Div(id="pca_var_result_frame", children=[
-                                        html.H5(id="pca_var_result", children="Processing...")
                                     ])
                                 ]
                             )
@@ -238,12 +251,16 @@ class DataVisualizer(object):
                                 id="screen20",
                                 children=[
                                     html.Div(id="screen200", children=[
-                                        dcc.Graph(id="pca_2d_matrix",
-                                                  figure=self._default_plain_fig, className="graph_style")
+                                        dcc.Loading(children=[
+                                            dcc.Graph(id="pca_2d_matrix",
+                                                      figure=self._default_plain_fig, className="graph_style")
+                                        ])
                                     ]),
                                     html.Div(id="screen201", children=[
-                                        dcc.Graph(id="clustering_2d_matrix",
-                                                  figure=self._default_plain_fig, className="graph_style")
+                                        dcc.Loading(children=[
+                                            dcc.Graph(id="clustering_2d_matrix",
+                                                      figure=self._default_plain_fig, className="graph_style")
+                                        ])
                                     ])
                                 ]
                             ),
@@ -252,12 +269,16 @@ class DataVisualizer(object):
                                 children=[
                                     html.Div(id="screen210", children=[
                                         html.Div(id="screen2000", children=[
-                                            dcc.Graph(id="pca_3d",
-                                                      figure=self._default_plain_fig, className="graph_style")
+                                            dcc.Loading(children=[
+                                                dcc.Graph(id="pca_3d",
+                                                          figure=self._default_plain_fig, className="graph_style")
+                                            ])
                                         ]),
                                         html.Div(id="screen2001", children=[
-                                            dcc.Graph(id="clustering_3d",
-                                                      figure=self._default_plain_fig, className="graph_style")
+                                            dcc.Loading(children=[
+                                                dcc.Graph(id="clustering_3d",
+                                                          figure=self._default_plain_fig, className="graph_style")
+                                            ])
                                         ])
                                     ]),
                                     html.Div(id="screen211", children=[
@@ -298,6 +319,11 @@ class DataVisualizer(object):
             [dash.dependencies.Input("ml_num_of_pc_setup", "value")]
         )(DataVisualizer._update_ml_axis_picker)
 
+        self._app.callback(
+            dash.dependencies.Output("ml_calc_button_pca_var", "children"),
+            [dash.dependencies.Input("ml_calc_button_pca_var", "n_clicks")]
+        )(DataVisualizer._reset_ml_calc_button_pca_var)
+
         # Callback for graphics
         self._app.callback(
             dash.dependencies.Output("bar_year_attack_type_all_fig", "figure"),
@@ -330,35 +356,42 @@ class DataVisualizer(object):
         self._app.callback(
             dash.dependencies.Output("pca_2d_matrix", "figure"),
             dash.dependencies.Output("clustering_2d_matrix", "figure"),
+            dash.dependencies.Output("ml_calc_button_pca_var", "children"),
+            [dash.dependencies.Input("ml_calc_button_pca_var", "n_clicks")],
+            [dash.dependencies.State("ml_target_picker", "value"),
+             dash.dependencies.State("ml_feature_cols_picker", "value"),
+             dash.dependencies.State("ml_num_of_pc_setup", "value"),
+             dash.dependencies.State("ml_random_state_setup", "value")]
+        )(self._update_pca_clustering_matrix)
+
+        self._app.callback(
             dash.dependencies.Output("pca_3d", "figure"),
             dash.dependencies.Output("clustering_3d", "figure"),
-            dash.dependencies.Output("pca_var_result", "children"),
-            [dash.dependencies.Input("ml_target_picker", "value"),
-             dash.dependencies.Input("ml_feature_cols_picker", "value"),
-             dash.dependencies.Input("ml_num_of_pc_setup", "value"),
-             dash.dependencies.Input("ml_random_state_setup", "value"),
+            [dash.dependencies.Input("pca_2d_matrix", "figure"),
+             dash.dependencies.Input("clustering_2d_matrix", "figure"),
              dash.dependencies.Input("ml_axis_picker_x", "value"),
              dash.dependencies.Input("ml_axis_picker_y", "value"),
              dash.dependencies.Input("ml_axis_picker_z", "value")]
-        )(self._update_pca_clustering)
+        )(self._update_pca_clustering_3d)
 
         self._app.callback(
             dash.dependencies.Output("heatmap_correlation_selected_cols", "figure"),
             [dash.dependencies.Input("ml_feature_cols_picker", "value")]
         )(self._update_heatmap_correlation_selected_cols)
 
+    # Methods for control panels
     def _update_categories_picker(self, selected_col):
 
-        if selected_col:
-            df = self._data_handler.get_data_frame_original
-
-            all_cat = [{"label": col, "value": col} for col in
-                       self._data_handler.get_data_frame_original[selected_col].unique()]
-            reserved_cat = DataHandler.get_top_categories(data_frame=df, target_cols=selected_col,
-                                                          number_of_reserved=self._default_number_of_reserved)
-            return all_cat, reserved_cat
-        else:
+        if not selected_col:
             return [], []
+
+        df = self._data_handler.get_data_frame_original
+
+        all_cat = [{"label": col, "value": col} for col in
+                   self._data_handler.get_data_frame_original[selected_col].unique()]
+        reserved_cat = DataHandler.get_top_categories(data_frame=df, target_cols=selected_col,
+                                                      number_of_reserved=self._default_number_of_reserved)
+        return all_cat, reserved_cat
 
     @staticmethod
     def _update_specific_year_picker(year_range, selected_bar):
@@ -377,6 +410,11 @@ class DataVisualizer(object):
 
         return tuple(return_settings)
 
+    @staticmethod
+    def _reset_ml_calc_button_pca_var(trigger):
+        return html.Span(f"Processing...[Trial {trigger}]")
+
+    # Methods for graphics
     def _update_bar_year_attack_type_all_fig(self, year_range):
         df = self._get_backend_data_frame_for_viewing(year_range=year_range)
         df = df.groupby(["iyear"]).size().reset_index(name="frequency")
@@ -523,30 +561,29 @@ class DataVisualizer(object):
                           plot_bgcolor="rgba(0,0,0,0)")
         return fig
 
-    def _update_pca_clustering(self, selected_target, selected_cols, num_of_pc, random_state, axis_x, axis_y, axis_z):
-        all_cols = selected_cols + [selected_target]
-        dfs = {}
-        return_list = []
+    def _update_pca_clustering_matrix(self, trigger, selected_target, selected_cols, num_of_pc, random_state):
 
         # Wait for input fields initialization.
-        if not (selected_target and selected_cols):
+        if not (selected_target and selected_cols and num_of_pc and random_state):
             return self._default_plain_fig, self._default_plain_fig
 
-        # Check whether there existed user-defined-target-col
-        selected_target = selected_target if selected_target else self._default_pca_target_pick
-        self._default_pca_target_pick = selected_target
+        self._pca_clustering_target = selected_target
+        all_focused_cols = selected_cols + [selected_target]
+        return_list = []
 
         # Compute PCA
-        dfs["PCA"] = self._data_handler.get_data_frame_original
-        dfs["PCA"] = dfs["PCA"][all_cols]
-        dfs["PCA"] = dfs["PCA"].dropna(subset=all_cols).reset_index()
+        self._pca_clustering_df["PCA"] = self._data_handler.get_data_frame_original
+        self._pca_clustering_df["PCA"] = self._pca_clustering_df["PCA"][all_focused_cols]
+        self._pca_clustering_df["PCA"] = self._pca_clustering_df["PCA"].dropna(subset=all_focused_cols).reset_index()
 
-        dfs["PCA"], total_var = DataHandler.get_pca(data_frame=dfs["PCA"], target=selected_target,
-                                                    num_of_pc=num_of_pc)
+        self._pca_clustering_df["PCA"], total_var = DataHandler.get_pca(data_frame=self._pca_clustering_df["PCA"],
+                                                                        target=selected_target,
+                                                                        num_of_pc=num_of_pc)
 
-        # Compute Clustering by using df["PCA"]
-        dfs["K-Means Clustering"] = DataHandler.get_clustering(data_frame=dfs["PCA"], target=selected_target,
-                                                               random_state=random_state)
+        # Compute Clustering by using self._pca_clustering_df["PCA"]
+        self._pca_clustering_df["K-Means Clustering"] = DataHandler.get_clustering(
+            data_frame=self._pca_clustering_df["PCA"], target=selected_target,
+            random_state=random_state)
 
         # Create Matrix figures - Meta
         computed_feature_cols = ["P" + str(i + 1) for i in range(num_of_pc)]
@@ -555,18 +592,19 @@ class DataVisualizer(object):
         labels["color"] = selected_target
 
         # Create Matrix figures
-        for key in dfs.keys():
+        for key in self._pca_clustering_df.keys():
             return_list.append(
                 px.scatter_matrix(
-                    dfs[key],
-                    color=dfs[key][selected_target],
+                    self._pca_clustering_df[key],
+                    color=self._pca_clustering_df[key][selected_target],
                     dimensions=computed_feature_cols,
                     labels=labels,
                     template="simple_white"
                 )
             )
 
-            return_list[-1].update_traces(diagonal_visible=False, marker_coloraxis=None)
+            return_list[-1].update_traces(diagonal_visible=False,
+                                          marker_coloraxis=None)
 
             return_list[-1].update_layout(autosize=True,
                                           showlegend=False,
@@ -576,14 +614,28 @@ class DataVisualizer(object):
                                           paper_bgcolor="rgba(0,0,0,0)",
                                           plot_bgcolor="rgba(0,0,0,0)")
 
+        return_list.append(html.Span(f"Total Explained Variance: {total_var * 100:.2f}%"))
+
+        return tuple(return_list)
+
+    def _update_pca_clustering_3d(self, pca_matrix_fig, clustering_matrix_fig, axis_x, axis_y, axis_z):
+
+        # Wait for input fields initialization.
+        if pca_matrix_fig == self._default_plain_fig or \
+                clustering_matrix_fig == self._default_plain_fig or \
+                not (axis_x and axis_y and axis_z):
+            return self._default_plain_fig, self._default_plain_fig
+
+        return_list = []
+
         # Create 3D figures
-        for key in dfs.keys():
+        for key in self._pca_clustering_df.keys():
             return_list.append(
-                px.scatter_3d(data_frame=dfs[key],
+                px.scatter_3d(data_frame=self._pca_clustering_df[key],
                               x=axis_x,
                               y=axis_y,
                               z=axis_z,
-                              color=dfs[key][selected_target],
+                              color=self._pca_clustering_df[key][self._pca_clustering_target],
                               template="simple_white"))
 
             return_list[-1].update_traces(marker_coloraxis=None)
@@ -599,8 +651,6 @@ class DataVisualizer(object):
                                               xaxis=dict(showbackground=False),
                                               yaxis=dict(showbackground=False),
                                               zaxis=dict(showbackground=False)))
-
-        return_list.append(f"Total Explained Variance: {total_var * 100:.2f}%")
 
         return tuple(return_list)
 
