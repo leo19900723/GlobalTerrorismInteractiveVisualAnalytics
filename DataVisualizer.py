@@ -79,7 +79,7 @@ class DataVisualizer(object):
                         id="side_bar_top",
                         children=[
                             html.H1(children=self._default_web_title),
-                            html.Div(children=self._default_web_credit)
+                            html.P(children=self._default_web_credit)
                         ]
                     ),
 
@@ -89,7 +89,7 @@ class DataVisualizer(object):
                             html.Div(
                                 id="side_bar_bottom0",
                                 children=[
-                                    html.H5(children="Year Range Picker"),
+                                    html.H3(children="Year Range Picker"),
                                     html.Div(id="year_slider_frame", children=[
                                         dcc.RangeSlider(
                                             id="year_slider",
@@ -99,13 +99,13 @@ class DataVisualizer(object):
                                         )
                                     ]),
 
-                                    html.H5(children="Specific Year Picker"),
+                                    html.H3(children="Specific Year Picker"),
                                     dcc.Dropdown(
                                         id="specific_year_picker",
                                         placeholder="Select a year"
                                     ),
 
-                                    html.H5(children="Column Picker"),
+                                    html.H3(children="Column Picker"),
                                     dcc.Dropdown(
                                         id="column_picker",
                                         options=[{"label": "View: " + col, "value": col} for col in
@@ -115,7 +115,7 @@ class DataVisualizer(object):
                                         placeholder="Select a column in the dataset"
                                     ),
 
-                                    html.H5(children="Detail Categories Picker"),
+                                    html.H3(children="Detail Categories Picker"),
                                     dcc.Dropdown(id="categories_picker", multi=True)
                                 ]
                             ),
@@ -123,7 +123,7 @@ class DataVisualizer(object):
                             html.Div(
                                 id="side_bar_bottom1",
                                 children=[
-                                    html.H5(children="PCA Target Picker"),
+                                    html.H3(children="PCA Target Picker"),
                                     dcc.Dropdown(
                                         id="ml_target_picker",
                                         options=[{"label": col, "value": col} for col in
@@ -132,7 +132,7 @@ class DataVisualizer(object):
                                         value=self._default_pca_target_pick
                                     ),
 
-                                    html.H5(children="PCA/ K-Means Feature Columns Picker"),
+                                    html.H3(children="PCA/ K-Means Feature Columns Picker"),
                                     dcc.Dropdown(
                                         id="ml_feature_cols_picker",
                                         options=[{"label": col, "value": col} for col in
@@ -143,7 +143,7 @@ class DataVisualizer(object):
 
                                     html.Div(id="side_bar_bottom1_parameters", children=[
                                         html.Div(id="ml_num_of_pc_frame", children=[
-                                            html.H6(children="Principle Columns"),
+                                            html.H4(children="Principle Columns"),
                                             dcc.Input(
                                                 id="ml_num_of_pc_setup",
                                                 type="number",
@@ -153,7 +153,7 @@ class DataVisualizer(object):
                                         ]),
 
                                         html.Div(id="ml_random_state_frame", children=[
-                                            html.H6(children="Random State"),
+                                            html.H4(children="Random State"),
                                             dcc.Input(
                                                 id="ml_random_state_setup",
                                                 type="number",
@@ -168,21 +168,21 @@ class DataVisualizer(object):
 
                                     html.Div(id="ml_axis_picker", children=[
                                         html.Div(id="ml_axis_picker_x_frame", children=[
-                                            html.H6(children="X-Axis for 3D"),
+                                            html.H4(children="X-Axis for 3D"),
                                             dcc.Dropdown(id="ml_axis_picker_x",
                                                          clearable=False,
                                                          placeholder="Select X-Axis")
                                         ]),
 
                                         html.Div(id="ml_axis_picker_y_frame", children=[
-                                            html.H6(children="Y-Axis for 3D"),
+                                            html.H4(children="Y-Axis for 3D"),
                                             dcc.Dropdown(id="ml_axis_picker_y",
                                                          clearable=False,
                                                          placeholder="Select Y-Axis")
                                         ]),
 
                                         html.Div(id="ml_axis_picker_z_frame", children=[
-                                            html.H6(children="Z-Axis for 3D"),
+                                            html.H4(children="Z-Axis for 3D"),
                                             dcc.Dropdown(id="ml_axis_picker_z",
                                                          clearable=False,
                                                          placeholder="Select Z-Axis")

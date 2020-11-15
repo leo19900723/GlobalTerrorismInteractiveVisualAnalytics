@@ -29,6 +29,33 @@ div {
     flex-direction: column;
 }
 
+#side_bar H1 {
+    font-size: 2.5vmax;
+    margin-bottom: 0.5vmax;
+}
+
+#side_bar H3 {
+    font-size: 1.2vmax;
+    margin-top: 0.3vmax;
+    margin-bottom: 0.3vmax;
+}
+
+#side_bar H4 {
+    font-size: 1vmax;
+    margin-top: 0.3vmax;
+    margin-bottom: 0.3vmax;
+}
+
+#side_bar p {
+    font-size: 0.8vmax;
+    margin-top: 0.3vmax;
+    margin-bottom: 0.3vmax;
+}
+
+#side_bar span, #side_bar input {
+    font-size: 0.7vmax;
+}
+
 #side_bar_bottom {
     flex-grow: 1;
     position: relative;
