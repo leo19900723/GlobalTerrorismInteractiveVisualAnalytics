@@ -319,11 +319,6 @@ class DataVisualizer(object):
             [dash.dependencies.Input("ml_num_of_pc_setup", "value")]
         )(DataVisualizer._update_ml_axis_picker)
 
-        self._app.callback(
-            dash.dependencies.Output("ml_calc_button_pca_var", "children"),
-            [dash.dependencies.Input("ml_calc_button_pca_var", "n_clicks")]
-        )(DataVisualizer._reset_ml_calc_button_pca_var)
-
         # Callback for graphics
         self._app.callback(
             dash.dependencies.Output("bar_year_attack_type_all_fig", "figure"),
@@ -409,10 +404,6 @@ class DataVisualizer(object):
             return_settings.append(options[axis_index]["value"])
 
         return tuple(return_settings)
-
-    @staticmethod
-    def _reset_ml_calc_button_pca_var(trigger):
-        return html.Span(f"Processing...[Trial {trigger}]")
 
     # Methods for graphics
     def _update_bar_year_attack_type_all_fig(self, year_range):

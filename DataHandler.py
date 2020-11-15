@@ -104,5 +104,5 @@ def unit_test():
     handler = DataHandler.construct_from_csv(path=path)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unit_test()
